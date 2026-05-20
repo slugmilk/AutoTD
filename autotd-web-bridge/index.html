@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutoTD Web Bridge</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyeline">AutoTD Web</p>
+        <h1>TouchDesigner 연결 준비 화면</h1>
+      </div>
+      <div class="topbar-meta">
+        <span class="meta-chip">Template draft</span>
+        <span class="meta-chip">WebSocket bridge</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel panel-input">
+        <div class="section-head">
+          <div>
+            <h2>생성 요청</h2>
+            <p>기획안 기준으로 프롬프트와 기본 파라미터를 먼저 TouchDesigner에 전달합니다.</p>
+          </div>
+        </div>
+
+        <form id="generateForm" class="stack">
+          <label class="field">
+            <span>프롬프트</span>
+            <textarea
+              id="promptInput"
+              name="prompt"
+              rows="7"
+              placeholder="예: 어두운 공간에서 입자가 천천히 모였다가 호흡하듯 퍼지는 미디어아트"
+              required
+            ></textarea>
+          </label>
+
+          <div class="field-grid">
+            <label class="field">
+              <span>무드</span>
+              <select id="moodSelect" name="mood">
+                <option value="calm">calm</option>
+                <option value="tense">tense</option>
+                <option value="dreamlike">dreamlike</option>
+                <option value="ritual">ritual</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>모션 속도</span>
+              <select id="motionSpeedSelect" name="motionSpeed">
+                <option value="slow">slow</option>
+                <option value="medium" selected>medium</option>
+                <option value="fast">fast</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>효과 밀도</span>
+              <select id="effectDensitySelect" name="effectDensity">
+                <option value="low">low</option>
+                <option value="medium" selected>medium</option>
+                <option value="high">high</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>길이(초)</span>
+              <input id="durationInput" name="duration" type="number" min="5" max="180" value="24">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>템플릿 메모</span>
+            <input
+              id="templateHintInput"
+              name="templateHint"
+              type="text"
+              placeholder="예: particle_field 우선 / 아직 최종 템플릿 미정"
+            >
+          </label>
+
+          <div class="action-row">
+            <button id="connectButton" type="button" class="button button-secondary">연결</button>
+            <button id="disconnectButton" type="button" class="button button-ghost" disabled>해제</button>
+            <button id="pingButton" type="button" class="button button-ghost" disabled>Ping</button>
+            <button id="generateButton" type="submit" class="button button-primary" disabled>TouchDesigner로 보내기</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel panel-connection">
+        <div class="section-head">
+          <div>
+            <h2>연결</h2>
+            <p>TouchDesigner `Web Server DAT`와 연결합니다.</p>
+          </div>
+          <span id="connectionBadge" class="status-badge is-offline">offline</span>
+        </div>
+
+        <div class="stack">
+          <div id="deployNotice" class="deploy-note" hidden>
+            GitHub Pages 배포본입니다. 이 링크는 외부 공유용 UI 데모로는 열리지만, 브라우저 보안 정책 때문에 이 페이지에서 로컬 `ws://127.0.0.1:9980` 연결은 바로 되지 않을 수 있습니다.
+          </div>
+
+          <label class="field">
+            <span>WebSocket 주소</span>
+            <input id="socketUrlInput" type="text" value="ws://127.0.0.1:9980/autotd">
+          </label>
+
+          <div class="status-grid">
+            <article class="status-card">
+              <span class="status-card-label">세션</span>
+              <strong id="sessionValue">미연결</strong>
+            </article>
+            <article class="status-card">
+              <span class="status-card-label">TD 상태</span>
+              <strong id="tdStatusValue">대기 중</strong>
+            </article>
+            <article class="status-card">
+              <span class="status-card-label">마지막 응답</span>
+              <strong id="lastEventValue">없음</strong>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-mapping">
+        <div class="section-head">
+          <div>
+            <h2>파라미터 매핑</h2>
+            <p>TouchDesigner에서 돌려준 현재 파라미터를 확인합니다.</p>
+          </div>
+        </div>
+        <pre id="mappingOutput" class="code-block">{
+  "template_type": "waiting",
+  "mood": "calm",
+  "palette": "ember",
+  "motion_speed": "medium",
+  "effect_density": "medium",
+  "duration": 24
+}</pre>
+      </section>
+
+      <section class="panel panel-preview">
+        <div class="section-head">
+          <div>
+            <h2>미리보기 자리</h2>
+            <p>TD가 `previewText`, `previewUrl`, `videoUrl`, `imageUrl` 중 하나를 보내면 여기서 표시합니다.</p>
+          </div>
+        </div>
+
+        <div id="previewSurface" class="preview-surface">
+          <div class="preview-copy">
+            <strong>연결 전</strong>
+            <p>TouchDesigner에서 미리보기 데이터를 보내기 전까지는 요약 텍스트가 표시됩니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-log">
+        <div class="section-head">
+          <div>
+            <h2>이벤트 로그</h2>
+            <p>브라우저와 TouchDesigner 사이에 오간 메시지를 추적합니다.</p>
+          </div>
+          <button id="clearLogButton" type="button" class="text-button">비우기</button>
+        </div>
+
+        <ul id="logList" class="log-list" aria-live="polite"></ul>
+      </section>
+    </main>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
