@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
+import time
 
 
 PREVIEW_FILE = Path(r"C:\Users\kelly\OneDrive\문서\New project\autotd-web-bridge\preview\out1.png")
@@ -79,6 +80,7 @@ def _build_mapping(payload):
         "effect_density": payload.get("effectDensity", "medium"),
         "duration": payload.get("duration", 24),
         "camera_style": "slow_push",
+        "variation_seed": int(time.time() * 1000),
     }
 
 
@@ -128,6 +130,17 @@ def _handle_generate(dat, client, payload):
 
     mapping = _build_mapping(payload)
     _write_debug_dats(prompt, mapping)
+    apply_dat = _safe_op("autotd_apply_params")
+    if apply_dat is not None and hasattr(apply_dat, "module"):
+        try:
+            apply_dat.module.apply_params()
+        except Exception as error:
+            _send_json(dat, client, {
+                "type": "error",
+                "message": f"템플릿 파라미터 적용 실패: {error}",
+                "timestamp": _now(),
+            })
+            return
 
     _send_json(dat, client, {
         "type": "status",

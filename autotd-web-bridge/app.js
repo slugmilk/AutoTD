@@ -7,6 +7,7 @@ const state = {
 
 const STORAGE_KEY = "autotd-web-bridge.socket-url";
 const DEFAULT_URL = "ws://127.0.0.1:9980/autotd";
+const LOCAL_PREVIEW_PATH = "./preview/out1.png";
 
 const elements = {
   form: document.getElementById("generateForm"),
@@ -100,6 +101,36 @@ function renderPreview(payload) {
   elements.previewSurface.append(text);
 }
 
+function knownPreviewUrl() {
+  return `${LOCAL_PREVIEW_PATH}?t=${Date.now()}`;
+}
+
+function tryLoadLatestPreview(reason = "latest-preview") {
+  const image = new Image();
+  const src = knownPreviewUrl();
+
+  image.onload = () => {
+    renderPreview({
+      imageUrl: src,
+      previewText: "최신 out1 미리보기를 불러왔습니다.",
+    });
+    state.lastEvent = reason;
+    updateStatusSummary();
+    logEvent("is-recv", "최신 out1 이미지 갱신");
+  };
+
+  image.onerror = () => {
+    logEvent("is-error", "최신 out1 이미지를 아직 읽지 못했습니다.");
+  };
+
+  image.src = src;
+}
+
+function queuePreviewRefresh() {
+  window.setTimeout(() => tryLoadLatestPreview("preview-refresh"), 250);
+  window.setTimeout(() => tryLoadLatestPreview("preview-refresh"), 1200);
+}
+
 function setInteractiveState(connected) {
   elements.connectButton.disabled = connected;
   elements.disconnectButton.disabled = !connected;
@@ -170,6 +201,12 @@ function handleIncomingMessage(rawText) {
 
   updateStatusSummary();
   logEvent("is-recv", `${payload.type || "message"} 수신`);
+
+  if (payload.type === "mapping" || payload.type === "status") {
+    if (payload.state === "ready_for_template" || payload.type === "mapping") {
+      queuePreviewRefresh();
+    }
+  }
 }
 
 function resetConnectionState(reason) {
@@ -219,6 +256,7 @@ function connectSocket() {
     updateStatusSummary();
     setInteractiveState(true);
     logEvent("is-send", "WebSocket 연결 완료");
+    queuePreviewRefresh();
     sendJson({
       type: "hello",
       client: "autotd-web-bridge",
@@ -280,6 +318,7 @@ function handleSubmit(event) {
   }
 
   sendJson(payload);
+  queuePreviewRefresh();
 }
 
 function bootstrap() {
@@ -311,6 +350,11 @@ function bootstrap() {
   elements.form.addEventListener("submit", handleSubmit);
   elements.clearLogButton.addEventListener("click", () => {
     elements.logList.innerHTML = "";
+  });
+  window.addEventListener("focus", () => {
+    if (state.socket?.readyState === WebSocket.OPEN) {
+      tryLoadLatestPreview("window-focus");
+    }
   });
 
   logEvent("is-recv", "브리지 준비 완료");
