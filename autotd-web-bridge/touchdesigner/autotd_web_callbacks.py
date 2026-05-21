@@ -5,6 +5,11 @@ from pathlib import Path
 
 PREVIEW_FILE = Path(r"C:\Users\kelly\OneDrive\문서\New project\autotd-web-bridge\preview\out1.png")
 PREVIEW_URL = "http://127.0.0.1:8080/autotd-web-bridge/preview/out1.png"
+ALLOWED_TEMPLATES = {
+    "particle_field",
+    "feedback_trails",
+    "simple_3d_scene",
+}
 
 
 def _now():
@@ -43,39 +48,31 @@ def _broadcast(payload):
     return True
 
 
-def _pick_template(prompt, template_hint):
-    prompt_text = (prompt or "").lower()
-    hint_text = (template_hint or "").lower()
-    joined = f"{prompt_text} {hint_text}"
-
-    if any(keyword in joined for keyword in ("3d", "object", "geometry", "구조", "입체")):
-        return "simple_3d_scene"
-    if any(keyword in joined for keyword in ("feedback", "trail", "잔상", "흐름")):
-        return "feedback_trails"
-    return "particle_field"
-
-
 def _pick_palette(prompt, mood):
-    prompt_text = prompt or ""
-    mood_text = mood or ""
-    joined = f"{prompt_text} {mood_text}"
+    joined = f"{prompt or ''} {mood or ''}".lower()
 
-    if any(keyword in joined for keyword in ("warm", "ember", "ritual", "붉", "불", "의식")):
+    if any(keyword in joined for keyword in ("warm", "ember", "ritual", "fire", "red", "orange")):
         return "ember"
-    if any(keyword in joined for keyword in ("forest", "organic", "green", "자연", "숲")):
+    if any(keyword in joined for keyword in ("forest", "organic", "green", "nature", "plant")):
         return "moss"
-    if any(keyword in joined for keyword in ("dream", "night", "cool", "우주", "푸른")):
+    if any(keyword in joined for keyword in ("dream", "night", "cool", "blue", "purple")):
         return "nocturne"
     return "chalk"
+
+
+def _resolve_template(payload):
+    template_type = payload.get("templateType", "particle_field")
+    if template_type in ALLOWED_TEMPLATES:
+        return template_type
+    return "particle_field"
 
 
 def _build_mapping(payload):
     prompt = payload.get("prompt", "")
     mood = payload.get("mood", "calm")
-    template_hint = payload.get("templateHint", "")
 
     return {
-        "template_type": _pick_template(prompt, template_hint),
+        "template_type": _resolve_template(payload),
         "mood": mood,
         "palette": _pick_palette(prompt, mood),
         "motion_speed": payload.get("motionSpeed", "medium"),
@@ -116,7 +113,7 @@ def _write_debug_dats(prompt, mapping):
         mapping_dat.text = json.dumps(mapping, ensure_ascii=False, indent=2)
 
     if status_dat is not None:
-        status_dat.text = f"updated { _now() }"
+        status_dat.text = f"updated {_now()}"
 
 
 def _handle_generate(dat, client, payload):
@@ -136,7 +133,7 @@ def _handle_generate(dat, client, payload):
         "type": "status",
         "state": "received",
         "stateLabel": "요청 수신",
-        "detail": "프롬프트를 받았습니다.",
+        "detail": "프롬프트와 선택 템플릿을 받았습니다.",
         "level": "busy",
         "timestamp": _now(),
     })
@@ -163,7 +160,7 @@ def _handle_generate(dat, client, payload):
         _send_json(dat, client, {
             "type": "preview",
             "previewText": (
-                f"이미지 미리보기를 아직 만들지 못했습니다.\n"
+                "이미지 미리보기를 아직 만들지 못했습니다.\n"
                 f"{preview_error}\n\n"
                 f"선택 템플릿: {mapping['template_type']}\n"
                 f"무드: {mapping['mood']}\n"
@@ -238,7 +235,7 @@ def onWebSocketOpen(dat, client, uri):
         "type": "status",
         "state": "connected",
         "stateLabel": "연결 완료",
-        "detail": "Web Server DAT가 웹 클라이언트를 받았습니다.",
+        "detail": "Web Server DAT가 새 클라이언트를 받았습니다.",
         "level": "ok",
         "timestamp": _now(),
     })
@@ -304,7 +301,6 @@ def onWebSocketReceiveText(dat, client, data):
         "message": f"지원하지 않는 메시지 타입입니다: {message_type}",
         "timestamp": _now(),
     })
-    return
 
 
 def onWebSocketReceiveBinary(dat, client, data):

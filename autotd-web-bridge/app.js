@@ -11,11 +11,11 @@ const DEFAULT_URL = "ws://127.0.0.1:9980/autotd";
 const elements = {
   form: document.getElementById("generateForm"),
   promptInput: document.getElementById("promptInput"),
+  templateTypeSelect: document.getElementById("templateTypeSelect"),
   moodSelect: document.getElementById("moodSelect"),
   motionSpeedSelect: document.getElementById("motionSpeedSelect"),
   effectDensitySelect: document.getElementById("effectDensitySelect"),
   durationInput: document.getElementById("durationInput"),
-  templateHintInput: document.getElementById("templateHintInput"),
   socketUrlInput: document.getElementById("socketUrlInput"),
   connectButton: document.getElementById("connectButton"),
   disconnectButton: document.getElementById("disconnectButton"),
@@ -96,7 +96,7 @@ function renderPreview(payload) {
 
   const text = document.createElement("div");
   text.className = "preview-text";
-  text.textContent = payload.previewText || "미리보기가 아직 전달되지 않았습니다.";
+  text.textContent = payload.previewText || "미리보기가 아직 도착하지 않았습니다.";
   elements.previewSurface.append(text);
 }
 
@@ -110,7 +110,7 @@ function setInteractiveState(connected) {
 function safeParseJson(text) {
   try {
     return JSON.parse(text);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -122,7 +122,7 @@ function rememberSocketUrl() {
 
 function isHostedDemo() {
   const host = window.location.hostname;
-  return host.endsWith("github.io") || host !== "127.0.0.1" && host !== "localhost" && window.location.protocol === "https:";
+  return host.endsWith("github.io") || (host !== "127.0.0.1" && host !== "localhost" && window.location.protocol === "https:");
 }
 
 function sendJson(payload) {
@@ -131,8 +131,7 @@ function sendJson(payload) {
     return false;
   }
 
-  const text = JSON.stringify(payload);
-  state.socket.send(text);
+  state.socket.send(JSON.stringify(payload));
   state.lastEvent = payload.type;
   updateStatusSummary();
   logEvent("is-send", `${payload.type} 전송`);
@@ -173,6 +172,16 @@ function handleIncomingMessage(rawText) {
   logEvent("is-recv", `${payload.type || "message"} 수신`);
 }
 
+function resetConnectionState(reason) {
+  state.socket = null;
+  state.sessionId = null;
+  state.serverStatus = reason;
+  state.lastEvent = "socket-close";
+  setConnectionBadge("is-offline", "offline");
+  setInteractiveState(false);
+  updateStatusSummary();
+}
+
 function closeSocket() {
   const socket = state.socket;
   state.socket = null;
@@ -187,7 +196,7 @@ function connectSocket() {
   rememberSocketUrl();
 
   if (window.location.protocol === "https:" && url.startsWith("ws://")) {
-    logEvent("is-error", "HTTPS 배포본에서는 ws:// localhost 연결이 브라우저에서 차단될 수 있습니다. 로컬 실행본을 사용하거나 별도 보안 프록시가 필요합니다.");
+    logEvent("is-error", "HTTPS 배포본에서는 ws:// localhost 연결이 브라우저에서 차단될 수 있습니다.");
   }
 
   closeSocket();
@@ -231,13 +240,7 @@ function connectSocket() {
       return;
     }
 
-    state.socket = null;
-    state.sessionId = null;
-    state.serverStatus = "연결 종료";
-    state.lastEvent = "socket-close";
-    setConnectionBadge("is-offline", "offline");
-    setInteractiveState(false);
-    updateStatusSummary();
+    resetConnectionState("연결 종료");
     logEvent("is-error", "WebSocket 연결이 종료되었습니다.");
   });
 
@@ -258,11 +261,11 @@ function buildGeneratePayload() {
   return {
     type: "generate",
     prompt: elements.promptInput.value.trim(),
+    templateType: elements.templateTypeSelect.value,
     mood: elements.moodSelect.value,
     motionSpeed: elements.motionSpeedSelect.value,
     effectDensity: elements.effectDensitySelect.value,
     duration: Number(elements.durationInput.value),
-    templateHint: elements.templateHintInput.value.trim(),
     requestedAt: new Date().toISOString(),
   };
 }
@@ -287,15 +290,18 @@ function bootstrap() {
 
   if (isHostedDemo()) {
     elements.deployNotice.hidden = false;
-    logEvent("is-recv", "배포본 감지: 이 페이지는 외부 공유용 정적 UI입니다.");
+    logEvent("is-recv", "배포본 감지: 이 페이지는 정적 UI 공유용으로 열렸습니다.");
   }
 
   renderPreview({
-    previewText: "TouchDesigner가 연결되면 미리보기 요약 또는 이미지/비디오 URL을 여기에 표시합니다.",
+    previewText: "TouchDesigner가 연결되면 미리보기 요약 또는 이미지가 여기에 표시됩니다.",
   });
 
   elements.connectButton.addEventListener("click", connectSocket);
-  elements.disconnectButton.addEventListener("click", closeSocket);
+  elements.disconnectButton.addEventListener("click", () => {
+    closeSocket();
+    resetConnectionState("수동 해제");
+  });
   elements.pingButton.addEventListener("click", () => {
     sendJson({
       type: "ping",

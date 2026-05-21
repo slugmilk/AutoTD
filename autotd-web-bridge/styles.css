@@ -181,6 +181,15 @@ textarea {
   gap: 14px;
 }
 
+.template-note {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-tight);
+  background: #fff8f0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .action-row {
   display: flex;
   flex-wrap: wrap;
@@ -280,6 +289,10 @@ textarea {
   background: #fff7ea;
   color: #6a4f20;
   line-height: 1.55;
+}
+
+.deploy-note code {
+  font-family: var(--font-mono);
 }
 
 .status-card {

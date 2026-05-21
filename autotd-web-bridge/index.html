@@ -11,10 +11,10 @@
     <header class="topbar">
       <div>
         <p class="eyeline">AutoTD Web</p>
-        <h1>TouchDesigner 연결 준비 화면</h1>
+        <h1>TouchDesigner 연결 화면</h1>
       </div>
       <div class="topbar-meta">
-        <span class="meta-chip">Template draft</span>
+        <span class="meta-chip">Template select</span>
         <span class="meta-chip">WebSocket bridge</span>
       </div>
     </header>
@@ -24,7 +24,7 @@
         <div class="section-head">
           <div>
             <h2>생성 요청</h2>
-            <p>기획안 기준으로 프롬프트와 기본 파라미터를 먼저 TouchDesigner에 전달합니다.</p>
+            <p>프롬프트와 기본 파라미터, 그리고 사용할 템플릿을 직접 선택해서 TouchDesigner로 보냅니다.</p>
           </div>
         </div>
 
@@ -35,12 +35,21 @@
               id="promptInput"
               name="prompt"
               rows="7"
-              placeholder="예: 어두운 공간에서 입자가 천천히 모였다가 호흡하듯 퍼지는 미디어아트"
+              placeholder="예: 어두운 공간에서 입자가 천천히 모였다가 퍼지는 장면"
               required
             ></textarea>
           </label>
 
           <div class="field-grid">
+            <label class="field">
+              <span>템플릿</span>
+              <select id="templateTypeSelect" name="templateType">
+                <option value="particle_field" selected>파티클</option>
+                <option value="feedback_trails">이미지 / 피드백</option>
+                <option value="simple_3d_scene">3D</option>
+              </select>
+            </label>
+
             <label class="field">
               <span>무드</span>
               <select id="moodSelect" name="mood">
@@ -75,15 +84,9 @@
             </label>
           </div>
 
-          <label class="field">
-            <span>템플릿 메모</span>
-            <input
-              id="templateHintInput"
-              name="templateHint"
-              type="text"
-              placeholder="예: particle_field 우선 / 아직 최종 템플릿 미정"
-            >
-          </label>
+          <div class="template-note">
+            선택한 템플릿이 그대로 TouchDesigner에 전달됩니다. 이제 템플릿 자동 추정은 하지 않습니다.
+          </div>
 
           <div class="action-row">
             <button id="connectButton" type="button" class="button button-secondary">연결</button>
@@ -98,14 +101,15 @@
         <div class="section-head">
           <div>
             <h2>연결</h2>
-            <p>TouchDesigner `Web Server DAT`와 연결합니다.</p>
+            <p>TouchDesigner Web Server DAT와 WebSocket으로 통신합니다.</p>
           </div>
           <span id="connectionBadge" class="status-badge is-offline">offline</span>
         </div>
 
         <div class="stack">
           <div id="deployNotice" class="deploy-note" hidden>
-            GitHub Pages 배포본입니다. 이 링크는 외부 공유용 UI 데모로는 열리지만, 브라우저 보안 정책 때문에 이 페이지에서 로컬 `ws://127.0.0.1:9980` 연결은 바로 되지 않을 수 있습니다.
+            이 페이지가 GitHub Pages에서 열리면, 브라우저 보안 정책 때문에 로컬의
+            <code>ws://127.0.0.1:9980</code> 에 바로 연결되지 않을 수 있습니다.
           </div>
 
           <label class="field">
@@ -134,11 +138,11 @@
         <div class="section-head">
           <div>
             <h2>파라미터 매핑</h2>
-            <p>TouchDesigner에서 돌려준 현재 파라미터를 확인합니다.</p>
+            <p>TouchDesigner가 받은 현재 파라미터를 확인합니다.</p>
           </div>
         </div>
         <pre id="mappingOutput" class="code-block">{
-  "template_type": "waiting",
+  "template_type": "particle_field",
   "mood": "calm",
   "palette": "ember",
   "motion_speed": "medium",
@@ -150,15 +154,15 @@
       <section class="panel panel-preview">
         <div class="section-head">
           <div>
-            <h2>미리보기 자리</h2>
-            <p>TD가 `previewText`, `previewUrl`, `videoUrl`, `imageUrl` 중 하나를 보내면 여기서 표시합니다.</p>
+            <h2>미리보기</h2>
+            <p>TouchDesigner가 previewText, previewUrl, videoUrl, imageUrl 중 하나를 보내면 여기에 표시합니다.</p>
           </div>
         </div>
 
         <div id="previewSurface" class="preview-surface">
           <div class="preview-copy">
-            <strong>연결 전</strong>
-            <p>TouchDesigner에서 미리보기 데이터를 보내기 전까지는 요약 텍스트가 표시됩니다.</p>
+            <strong>연결 대기</strong>
+            <p>TouchDesigner가 미리보기 데이터를 보내기 전까지는 요약 텍스트가 표시됩니다.</p>
           </div>
         </div>
       </section>
@@ -167,7 +171,7 @@
         <div class="section-head">
           <div>
             <h2>이벤트 로그</h2>
-            <p>브라우저와 TouchDesigner 사이에 오간 메시지를 추적합니다.</p>
+            <p>브라우저와 TouchDesigner 사이의 송수신 메시지를 추적합니다.</p>
           </div>
           <button id="clearLogButton" type="button" class="text-button">비우기</button>
         </div>
