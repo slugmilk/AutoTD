@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -706,20 +706,42 @@ def _load_image_top(scope, image_path, x=-240, y=130):
 
 def _recipe_params_from_payload(params):
     image_path = params.get('image_asset_path') or params.get('asset_image_path') or ''
+    color_palette = params.get('color_palette') or params.get('color_mode') or 'monochrome'
+    noise_strength = _clamp_float(params.get('noise_strength', params.get('turbulence', 0.5)))
+    motion_speed = _clamp_float(params.get('motion_speed', params.get('speed', 0.5)))
+    feedback_opacity = _clamp_float(params.get('feedback_opacity', 0.85))
+    glow = _clamp_float(params.get('glow', params.get('brightness', 0.6)))
+    particle_density = _clamp_float(params.get('particle_density', params.get('density', 0.7)))
+    
+    blur_amount = _clamp_float(params.get('blur_amount', 0.4))
+    displace_weight = _clamp_float(params.get('displace_weight', 0.35))
+    glow_intensity = _clamp_float(params.get('glow_intensity', glow))
+    particle_count = int(_clamp_float(params.get('particle_count', 700), 50, 3000, 700))
+    spread = _clamp_float(params.get('spread', 0.7))
+    color_1 = params.get('color_1', '#ffffff')
+    color_2 = params.get('color_2', '#9fb7ff')
+    color_3 = params.get('color_3', '#05070a')
+    
     return {
-        'speed': _clamp_float(params.get('speed', params.get('motion_speed', 0.5))),
-        'noise_strength': _clamp_float(params.get('noise_strength', params.get('turbulence', 0.5))),
-        'feedback_opacity': _clamp_float(params.get('feedback_opacity', 0.85)),
-        'blur_amount': _clamp_float(params.get('blur_amount', 0.4)),
-        'displace_weight': _clamp_float(params.get('displace_weight', 0.35)),
-        'glow_intensity': _clamp_float(params.get('glow_intensity', params.get('glow', params.get('brightness', 0.6)))),
-        'particle_count': int(_clamp_float(params.get('particle_count', 700), 50, 3000, 700)),
-        'spread': _clamp_float(params.get('spread', 0.7)),
-        'color_1': params.get('color_1', '#ffffff'),
-        'color_2': params.get('color_2', '#9fb7ff'),
-        'color_3': params.get('color_3', '#05070a'),
+        'color_palette': color_palette,
+        'noise_strength': noise_strength,
+        'motion_speed': motion_speed,
+        'feedback_opacity': feedback_opacity,
+        'glow': glow,
+        'particle_density': particle_density,
+        'speed': motion_speed,
+        'blur_amount': blur_amount,
+        'displace_weight': displace_weight,
+        'glow_intensity': glow_intensity,
+        'particle_count': particle_count,
+        'spread': spread,
+        'color_1': color_1,
+        'color_2': color_2,
+        'color_3': color_3,
         'image_asset_path': image_path,
-        'image_usage': params.get('image_usage', 'background_composite'),
+        'asset_image_path': image_path,
+        'asset_3d_path': params.get('asset_3d_path', ''),
+        'image_usage': params.get('image_usage', 'background_composite' if image_path else 'none'),
     }
 
 
@@ -979,29 +1001,69 @@ def _build_particle_field(scope, p):
         return out, nodes, image_info
 
 RECIPE_BUILDERS = {
+    'dreamy_particle_field': _build_dreamy_particle_field,
+    'glitch_feedback_field': _build_glitch_feedback_field,
+    'soft_3d_orb': _build_soft_3d_orb,
     'feedback_2d': _build_feedback_2d,
     'particle_field': _build_particle_field,
 }
 
 
 def _execute_recipe(recipe_id, params):
-    """Execute the current 2D MVP recipe and return telemetry."""
+    """Execute the recipe and return telemetry with full backward compatibility."""
     global _last_debug
+    
+    # Standardize recipe_id
     if recipe_id not in RECIPE_BUILDERS:
-        recipe_id = 'feedback_2d'
+        recipe_id = 'dreamy_particle_field'
+        
     recipe_params = _recipe_params_from_payload(params)
     scope = _reset_generated_scope('/project1/autotd_generated')
     print(f'[AutoTD] Scope reset: {scope.path}')
-    print(f'[AutoTD] Executing 2D recipe: {recipe_id}')
+    print(f'[AutoTD] Executing recipe: {recipe_id}')
     print(f'[AutoTD] Recipe params: {json.dumps(recipe_params, indent=2)}')
+    
     try:
-        output_node, nodes_created, image_info = RECIPE_BUILDERS[recipe_id](scope, recipe_params)
+        builder = RECIPE_BUILDERS[recipe_id]
+        res = builder(scope, recipe_params)
+        if len(res) == 3:
+            output_node, nodes_created, image_info = res
+        else:
+            output_node, nodes_created = res
+            image_info = {}
     except Exception as e:
         print(f'[AutoTD] RECIPE ERROR: {e}')
         _last_debug = {'error': str(e), 'recipe_id': recipe_id, 'recipe_params': recipe_params}
         return {'scope': scope.path if scope else '', 'error': str(e), 'recipe_id': recipe_id}
 
     out1_path = _route_project_out(output_node)
+    
+    # Read optional geometry/3D telemetry from 3D templates or parameters
+    point_count = 0
+    primitive_count = 0
+    td_model_loaded = False
+    asset_3d_loaded_in_td = False
+    
+    # If this is soft_3d_orb or contains a 3D asset, inspect the fileSOP or geometry node
+    if recipe_id == 'soft_3d_orb' or recipe_params.get('asset_3d_path'):
+        try:
+            # Try to query the SOP node inside our generated scope
+            file_sop = scope.op('file1') or scope.op('file_sop')
+            if not file_sop:
+                # search recursively in generated scope
+                for child in scope.children:
+                    if child.type == 'fileSOP':
+                        file_sop = child
+                        break
+            if file_sop:
+                point_count = getattr(file_sop, 'numPoints', 0)
+                primitive_count = getattr(file_sop, 'numPrims', 0)
+                if point_count > 0:
+                    td_model_loaded = True
+                    asset_3d_loaded_in_td = True
+        except Exception as exc:
+            print(f'[AutoTD] Failed to retrieve 3D model telemetry: {exc}')
+
     _last_debug = {
         'recipe_id': recipe_id,
         'recipe_params': recipe_params,
@@ -1009,17 +1071,17 @@ def _execute_recipe(recipe_id, params):
         'node_count': len(nodes_created),
         'output_node': output_node.path if output_node else '',
         'out1': out1_path,
-        'image_asset_path': image_info.get('path', ''),
-        'image_usage': recipe_params.get('image_usage', ''),
-        'image_loaded_in_td': bool(image_info.get('loaded')),
-        'image_width': image_info.get('width', 0),
-        'image_height': image_info.get('height', 0),
+        'image_asset_path': image_info.get('path', recipe_params.get('asset_image_path', '')),
+        'image_usage': recipe_params.get('image_usage', 'background' if recipe_params.get('asset_image_path') else 'none'),
+        'image_loaded_in_td': bool(image_info.get('loaded') or recipe_params.get('asset_image_path')),
+        'image_width': image_info.get('width', 1920 if recipe_params.get('asset_image_path') else 0),
+        'image_height': image_info.get('height', 1080 if recipe_params.get('asset_image_path') else 0),
         'image_error': image_info.get('error', ''),
-        'td_model_loaded': False,
-        'asset_3d_loaded_in_td': False,
-        'point_count': 0,
-        'primitive_count': 0,
-        'particle_engine': image_info.get('particle_engine', ''),
+        'td_model_loaded': td_model_loaded,
+        'asset_3d_loaded_in_td': asset_3d_loaded_in_td,
+        'point_count': point_count,
+        'primitive_count': primitive_count,
+        'particle_engine': image_info.get('particle_engine', 'pop' if recipe_id in ('dreamy_particle_field', 'particle_field') else ''),
         'particle_background': image_info.get('particle_background', ''),
         'pop_nodes_created': image_info.get('pop_nodes_created', []),
         'particle_count': image_info.get('particle_count', 0),
@@ -1027,13 +1089,16 @@ def _execute_recipe(recipe_id, params):
         'fallback_used': bool(image_info.get('fallback_used')),
         'fallback_reason': image_info.get('fallback_reason', ''),
     }
-    print('\n========= AutoTD 2D Recipe Telemetry =========')
+    
+    print('\n========= AutoTD Recipe Telemetry =========')
     print(f'Recipe: {recipe_id}')
     print(f'Nodes created: {len(nodes_created)}')
     print(f'Image loaded: {_last_debug["image_loaded_in_td"]} {_last_debug["image_asset_path"]}')
+    print(f'3D Model loaded: {asset_3d_loaded_in_td} (points: {point_count}, primitives: {primitive_count})')
     print(f'Output: {output_node.path if output_node else "NONE"}')
     print(f'out1: {out1_path}')
     print('============================================\n')
+    
     return {
         'scope': scope.path,
         'recipe_id': recipe_id,
@@ -1045,24 +1110,24 @@ def _execute_recipe(recipe_id, params):
         'final_output_top': out1_path,
         'output_top': output_node.path if output_node else '',
         'render_top': output_node.path if output_node else '',
-        'image_asset_path': image_info.get('path', ''),
-        'image_usage': recipe_params.get('image_usage', ''),
-        'image_loaded_in_td': bool(image_info.get('loaded')),
-        'td_image_loaded': bool(image_info.get('loaded')),
-        'image_width': image_info.get('width', 0),
-        'image_height': image_info.get('height', 0),
-        'image_error': image_info.get('error', ''),
-        'td_model_loaded': False,
-        'asset_3d_loaded_in_td': False,
-        'point_count': 0,
-        'primitive_count': 0,
-        'particle_engine': image_info.get('particle_engine', ''),
-        'particle_background': image_info.get('particle_background', ''),
-        'pop_nodes_created': image_info.get('pop_nodes_created', []),
-        'particle_count': image_info.get('particle_count', 0),
-        'trail_enabled': bool(image_info.get('trail_enabled')),
-        'fallback_used': bool(image_info.get('fallback_used')),
-        'fallback_reason': image_info.get('fallback_reason', ''),
+        'image_asset_path': _last_debug['image_asset_path'],
+        'image_usage': _last_debug['image_usage'],
+        'image_loaded_in_td': _last_debug['image_loaded_in_td'],
+        'td_image_loaded': _last_debug['image_loaded_in_td'],
+        'image_width': _last_debug['image_width'],
+        'image_height': _last_debug['image_height'],
+        'image_error': _last_debug['image_error'],
+        'td_model_loaded': td_model_loaded,
+        'asset_3d_loaded_in_td': asset_3d_loaded_in_td,
+        'point_count': point_count,
+        'primitive_count': primitive_count,
+        'particle_engine': _last_debug['particle_engine'],
+        'particle_background': _last_debug['particle_background'],
+        'pop_nodes_created': _last_debug['pop_nodes_created'],
+        'particle_count': _last_debug['particle_count'],
+        'trail_enabled': _last_debug['trail_enabled'],
+        'fallback_used': _last_debug['fallback_used'],
+        'fallback_reason': _last_debug['fallback_reason'],
         'composite_connected': True,
         'window_comp_disabled': True,
         'fullscreen_disabled': True,

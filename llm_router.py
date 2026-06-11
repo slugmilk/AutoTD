@@ -277,6 +277,14 @@ class LLMRouter:
     def _recipe_override_from_prompt(self, prompt: str) -> str:
         """Use deterministic recipe routing so a weak LLM choice cannot derail the demo."""
         text = (prompt or '').lower()
+        particle_hint_terms = [
+            'particle', 'particles', 'starlight', 'starfield', 'dust', 'sparkle',
+            'sparkles', 'glitter', 'firefly', 'mote', 'motes', 'black background',
+            '입자', '파티클', '별가루', '별빛', '먼지', '반짝', '반짝임',
+            '검은 배경', '검정 배경',
+        ]
+        if any(term in text for term in particle_hint_terms):
+            return 'particle_field'
         feedback_terms = [
             'water', 'sea', 'ocean', 'fog', 'mist', 'dream', 'flow', 'flowing',
             'soft', 'underwater', 'liquid', 'wave', 'fluid', 'haze',
