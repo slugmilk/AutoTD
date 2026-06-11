@@ -804,6 +804,16 @@ async def info_redirect():
     return FileResponse(BASE_DIR / 'info.html')
 
 
+@app.get('/generator.html')
+async def generator_html():
+    return FileResponse(BASE_DIR / 'index.html')
+
+
+@app.get('/generator')
+async def generator_redirect():
+    return FileResponse(BASE_DIR / 'index.html')
+
+
 @app.get('/api/status', response_model=StatusResponse)
 async def api_status():
     return StatusResponse(

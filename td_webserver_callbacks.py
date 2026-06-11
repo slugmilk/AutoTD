@@ -832,12 +832,12 @@ def _build_particle_field(scope, p):
 
     particle_source = None
     try:
-        geo = _make_op(scope, 'geoCOMP', 'particle_geo', -80, 190)
+        geo = _make_op(scope, 'geometryCOMP', 'particle_geo', -80, 190)
         cam = _make_op(scope, 'cameraCOMP', 'particle_cam', -80, -210)
         light = _make_op(scope, 'lightCOMP', 'particle_light', 120, -210)
         mat = _make_op(scope, 'constantMAT', 'particle_material', 120, 190)
         nodes.extend([
-            ('particle_geo', 'geoCOMP'),
+            ('particle_geo', 'geometryCOMP'),
             ('particle_cam', 'cameraCOMP'),
             ('particle_light', 'lightCOMP'),
             ('particle_material', 'constantMAT'),

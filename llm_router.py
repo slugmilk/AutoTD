@@ -621,7 +621,7 @@ class LLMRouter:
             'particle_field': [
                 ('source_image', 'moviefileinTOP'),
                 ('black_background', 'constantTOP'),
-                ('particle_geo', 'geoCOMP'),
+                ('particle_geo', 'geometryCOMP'),
                 ('particle_volume', 'spherePOP'),
                 ('source_particles', 'sprinklePOP'),
                 ('particle_motion', 'transformPOP'),

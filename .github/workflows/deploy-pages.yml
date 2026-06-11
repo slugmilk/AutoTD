@@ -29,10 +29,19 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare Pages directory
+        run: |
+          mkdir build
+          cp -r pdf_pages build/
+          cp info.html build/index.html
+          cp style.css build/
+          cp index.html build/generator.html
+          cp script.js build/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: autotd-web-bridge
+          path: build
 
       - name: Deploy to GitHub Pages
         id: deployment
