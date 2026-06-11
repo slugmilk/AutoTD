@@ -794,6 +794,16 @@ async def script_js():
     return FileResponse(BASE_DIR / 'script.js')
 
 
+@app.get('/info.html')
+async def info_html():
+    return FileResponse(BASE_DIR / 'info.html')
+
+
+@app.get('/info')
+async def info_redirect():
+    return FileResponse(BASE_DIR / 'info.html')
+
+
 @app.get('/api/status', response_model=StatusResponse)
 async def api_status():
     return StatusResponse(

@@ -132,7 +132,7 @@ class LLMRouter:
             'Do not generate TouchDesigner node names, code, or arbitrary graph structures.\n\n'
             'AVAILABLE RECIPES:\n'
             '- feedback_2d: underwater, fog, dream, flow, soft distortion, liquid atmosphere.\n'
-            '- particle_field: small light particles, dust, stardust, floating sparkles, glowing points.\n\n'
+            '- particle_field: POP-based small light particles on a black background, dust, stardust, floating sparkles, glowing points.\n\n'
             'Recipe selection rules:\n'
             '- water, sea, fog, dream, flow, soft, underwater -> feedback_2d\n'
             '- particle, starlight, dust, light, floating, sparkles -> particle_field\n\n'
@@ -620,15 +620,22 @@ class LLMRouter:
             ],
             'particle_field': [
                 ('source_image', 'moviefileinTOP'),
-                ('particle_seed_noise', 'noiseTOP'),
-                ('threshold_particles', 'thresholdTOP'),
+                ('black_background', 'constantTOP'),
+                ('particle_geo', 'geoCOMP'),
+                ('particle_volume', 'spherePOP'),
+                ('source_particles', 'sprinklePOP'),
+                ('particle_motion', 'transformPOP'),
+                ('particle_trails', 'trailPOP'),
+                ('particle_material', 'constantMAT'),
+                ('particle_cam', 'cameraCOMP'),
+                ('particle_light', 'lightCOMP'),
+                ('pop_render', 'renderTOP'),
                 ('particle_level', 'levelTOP'),
                 ('particle_feedback', 'feedbackTOP'),
                 ('particle_drift', 'transformTOP'),
                 ('echo_feedback', 'feedbackTOP'),
                 ('particle_glow', 'blurTOP'),
-                ('background_haze', 'rampTOP'),
-                ('haze_feedback_mix', 'compositeTOP'),
+                ('black_particle_composite', 'compositeTOP'),
                 ('particle_composite', 'compositeTOP'),
                 ('generated_out', 'nullTOP'),
                 ('out1', 'outTOP'),

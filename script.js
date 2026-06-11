@@ -1195,12 +1195,18 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
 
   const td = document.createElement('div');
   td.className = 'source-item loaded';
+  const particleEngine = tdApplied.particle_engine ? `particle engine: ${tdApplied.particle_engine}` : 'recipe engine: feedback/POP particle';
+  const particleTrail = tdApplied.trail_enabled ? 'POP trails: enabled' : 'POP trails: recipe-dependent';
+  const fallbackText = tdApplied.fallback_used ? `fallback: ${tdApplied.fallback_reason || 'used'}` : 'fallback: off';
   td.innerHTML = `
     <div class="source-meta">
       <strong>TouchDesigner MCP Control</strong>
-      <span>active - verified 2D TOP recipe chain</span>
+      <span>active - verified 2D recipe / POP particle control</span>
       <div class="source-facts">
         <span>preview: ${tdApplied.final_output_top || tdApplied.out1 || 'out1'}</span>
+        <span>${particleEngine}</span>
+        <span>${particleTrail}</span>
+        <span>${fallbackText}</span>
       </div>
     </div>
   `;
