@@ -1,0 +1,18 @@
+# Environment Variables
+.env
+
+# Python caching
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+autotd_server.err.log
+autotd_server.log
+
+# Generated assets
+generated_assets/
+
+# Local OS files
+.DS_Store
+Thumbs.db

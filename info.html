@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoTD - AI 기반 터치디자이너 미디어아트 생성 플랫폼</title>
+  <meta name="description" content="텍스트 프롬프트를 분석하여 TouchDesigner 실시간 미디어아트 넷워크를 제어하고 비주얼을 생성하는 AI 오케스트레이터 플랫폼, AutoTD의 기술 설명서 및 소개 사이트입니다." />
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg-dark: #070708;
+      --bg-dark-card: rgba(18, 18, 24, 0.7);
+      --accent-purple: #9d4edd;
+      --accent-pink: #ff007f;
+      --accent-cyan: #00f0ff;
+      --accent-green: #39ff14;
+      --text-primary: #ffffff;
+      --text-secondary: rgba(255, 255, 255, 0.65);
+      --border-glow: rgba(157, 78, 221, 0.25);
+      --border-line: rgba(255, 255, 255, 0.08);
+      --font-body: 'Inter', sans-serif;
+      --font-head: 'Space Grotesk', sans-serif;
+      --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(157, 78, 221, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(0, 240, 255, 0.06) 0%, transparent 45%);
+      background-attachment: fixed;
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Selection */
+    ::selection {
+      background: var(--accent-purple);
+      color: #fff;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 30px;
+    }
+
+    /* Header & Navigation */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(7, 7, 8, 0.7);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-line);
+      transition: var(--transition);
+    }
+
+    .nav-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 70px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: #fff;
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: 1.3rem;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-icon {
+      position: relative;
+      width: 30px;
+      height: 30px;
+      border: 1.5px solid var(--accent-cyan);
+      transform: rotate(45deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    }
+
+    .logo-icon::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: var(--accent-pink);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-pink);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 30px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+
+    .nav-links a:hover {
+      color: var(--accent-cyan);
+      text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+    }
+
+    .btn-github {
+      background: linear-gradient(135deg, var(--accent-purple), #7b2cbf);
+      color: #fff !important;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3);
+    }
+
+    .btn-github:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(157, 78, 221, 0.5);
+    }
+
+    /* Hero Section */
+    .hero {
+      position: relative;
+      padding: 120px 0 80px 0;
+      text-align: center;
+    }
+
+    .hero-tag {
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+      display: inline-block;
+      padding: 6px 16px;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 30px;
+      background: rgba(0, 240, 255, 0.03);
+    }
+
+    .hero-title {
+      font-family: var(--font-head);
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1.5px;
+      margin-bottom: 25px;
+      background: linear-gradient(135deg, #fff 30%, rgba(255, 255, 255, 0.8) 50%, var(--accent-purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+      max-width: 750px;
+      margin: 0 auto 40px auto;
+    }
+
+    .hero-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    .btn-primary {
+      padding: 14px 28px;
+      border-radius: 10px;
+      background: #fff;
+      color: var(--bg-dark);
+      text-decoration: none;
+      font-weight: 600;
+      transition: var(--transition);
+      box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-secondary {
+      padding: 14px 28px;
+      border-radius: 10px;
+      background: transparent;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid var(--border-line);
+      transition: var(--transition);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Core Concept Cards */
+    .section-title {
+      font-family: var(--font-head);
+      font-size: 2.2rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 15px;
+      letter-spacing: -0.8px;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 50px auto;
+    }
+
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 30px;
+      margin-bottom: 100px;
+    }
+
+    .card {
+      background: var(--bg-dark-card);
+      border: 1px solid var(--border-line);
+      border-radius: 16px;
+      padding: 35px;
+      backdrop-filter: blur(10px);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-purple), transparent);
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      border-color: rgba(157, 78, 221, 0.3);
+      box-shadow: 0 10px 30px rgba(157, 78, 221, 0.1);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-icon {
+      width: 50px;
+      height: 50px;
+      border-radius: 12px;
+      background: rgba(157, 78, 221, 0.1);
+      border: 1px solid rgba(157, 78, 221, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 25px;
+      color: var(--accent-purple);
+    }
+
+    .card-title {
+      font-family: var(--font-head);
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 15px;
+    }
+
+    .card-text {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    /* Architecture Diagram Section */
+    .arch-section {
+      background: rgba(18, 18, 24, 0.4);
+      border-top: 1px solid var(--border-line);
+      border-bottom: 1px solid var(--border-line);
+      padding: 90px 0;
+      position: relative;
+    }
+
+    .flowchart {
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+      max-width: 900px;
+      margin: 50px auto 0 auto;
+      position: relative;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: center;
+      background: rgba(7, 7, 8, 0.6);
+      border: 1px solid var(--border-line);
+      border-radius: 12px;
+      padding: 20px 25px;
+      position: relative;
+      transition: var(--transition);
+    }
+
+    .flow-step:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 240, 255, 0.02);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.05);
+    }
+
+    .flow-num {
+      width: 36px;
+      height: 36px;
+      background: var(--accent-cyan);
+      color: var(--bg-dark);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-head);
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-right: 25px;
+      flex-shrink: 0;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+    }
+
+    .flow-info {
+      flex-grow: 1;
+    }
+
+    .flow-title {
+      font-family: var(--font-head);
+      font-weight: 600;
+      font-size: 1.1rem;
+      margin-bottom: 4px;
+    }
+
+    .flow-desc {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .flow-arrow {
+      text-align: center;
+      font-size: 1.5rem;
+      color: rgba(255, 255, 255, 0.15);
+      margin: -5px 0;
+    }
+
+    /* Recipes Showcases */
+    .recipes-section {
+      padding: 90px 0;
+    }
+
+    .tabs {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-bottom: 40px;
+    }
+
+    .tab-btn {
+      padding: 12px 28px;
+      border: 1px solid var(--border-line);
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 30px;
+      font-family: var(--font-head);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .tab-btn:hover {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
+      border-color: #fff;
+      box-shadow: 0 4px 15px rgba(255, 255, 255, 0.05);
+    }
+
+    .recipe-pane {
+      display: none;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 50px;
+      align-items: center;
+    }
+
+    .recipe-pane.active {
+      display: grid;
+    }
+
+    .recipe-visual {
+      height: 380px;
+      border-radius: 16px;
+      background: #111;
+      border: 1px solid var(--border-line);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Interactive visuals corresponding to recipes */
+    .visual-glow {
+      position: absolute;
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--accent-purple) 0%, transparent 70%);
+      filter: blur(10px);
+      animation: pulse 4s infinite alternate;
+    }
+
+    /* Recipe visual dynamic styling */
+    .recipe-pane[data-recipe="particle"] .recipe-visual {
+      background: linear-gradient(135deg, #0e041d 0%, #030107 100%);
+    }
+    .recipe-pane[data-recipe="particle"] .visual-glow {
+      background: radial-gradient(circle, var(--accent-cyan) 0%, transparent 60%);
+      animation: float-particle 6s infinite ease-in-out;
+    }
+    .recipe-pane[data-recipe="particle"] .visual-dots {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.4) 1px, transparent 1px);
+      background-size: 20px 20px;
+      opacity: 0.3;
+    }
+
+    .recipe-pane[data-recipe="glitch"] .recipe-visual {
+      background: linear-gradient(135deg, #1d0412 0%, #070104 100%);
+    }
+    .recipe-pane[data-recipe="glitch"] .visual-glow {
+      background: radial-gradient(circle, var(--accent-pink) 0%, transparent 60%);
+      animation: jitter 0.2s infinite;
+    }
+    .recipe-pane[data-recipe="glitch"] .visual-lines {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: repeating-linear-gradient(0deg, rgba(255, 0, 127, 0.08) 0px, rgba(255, 0, 127, 0.08) 2px, transparent 2px, transparent 4px);
+    }
+
+    .recipe-pane[data-recipe="3d"] .recipe-visual {
+      background: linear-gradient(135deg, #04191d 0%, #010607 100%);
+    }
+    .recipe-pane[data-recipe="3d"] .visual-glow {
+      background: radial-gradient(circle, var(--accent-purple) 0%, transparent 60%);
+      animation: orbit 8s infinite linear;
+    }
+    .recipe-pane[data-recipe="3d"] .visual-cube {
+      width: 100px;
+      height: 100px;
+      border: 1.5px solid var(--accent-cyan);
+      position: absolute;
+      transform: rotateX(45deg) rotateY(45deg);
+      animation: spin-cube 10s infinite linear;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.2);
+    }
+
+    .recipe-info h3 {
+      font-family: var(--font-head);
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 15px;
+    }
+
+    .recipe-tag {
+      color: var(--accent-purple);
+      font-family: var(--font-head);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .recipe-desc {
+      color: var(--text-secondary);
+      margin-bottom: 25px;
+    }
+
+    .recipe-params-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .param-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-line);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+
+    .param-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .param-value {
+      font-family: var(--font-head);
+      font-weight: 600;
+      font-size: 1rem;
+      margin-top: 2px;
+    }
+
+    /* Git Clone Section */
+    .git-section {
+      background: linear-gradient(180deg, transparent, rgba(157, 78, 221, 0.04));
+      padding: 95px 0;
+      border-top: 1px solid var(--border-line);
+    }
+
+    .git-box {
+      background: var(--bg-dark-card);
+      border: 1px solid var(--border-glow);
+      border-radius: 20px;
+      padding: 50px;
+      text-align: center;
+      max-width: 850px;
+      margin: 0 auto;
+      box-shadow: 0 0 40px rgba(157, 78, 221, 0.08);
+      position: relative;
+    }
+
+    .git-icon {
+      width: 64px;
+      height: 64px;
+      background: rgba(157, 78, 221, 0.1);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 25px auto;
+      color: var(--accent-purple);
+    }
+
+    .code-block {
+      background: #020203;
+      border: 1px solid var(--border-line);
+      border-radius: 10px;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 30px 0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.95rem;
+      text-align: left;
+    }
+
+    .code-text {
+      color: var(--accent-cyan);
+    }
+
+    .btn-copy {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: var(--transition);
+    }
+
+    .btn-copy:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Footer */
+    footer {
+      background: #040405;
+      padding: 60px 0;
+      border-top: 1px solid var(--border-line);
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+    }
+
+    .footer-copy {
+      font-size: 0.85rem;
+    }
+
+    /* Keyframes Animations */
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.5; }
+      100% { transform: scale(1.1); opacity: 0.8; }
+    }
+
+    @keyframes float-particle {
+      0% { transform: translate(-20px, -20px) scale(0.8); }
+      50% { transform: translate(30px, 40px) scale(1.2); }
+      100% { transform: translate(-20px, -20px) scale(0.8); }
+    }
+
+    @keyframes jitter {
+      0% { transform: translate(0, 0) scale(1); }
+      20% { transform: translate(-3px, 2px) scale(1.02); }
+      40% { transform: translate(2px, -3px) scale(0.98); }
+      60% { transform: translate(-1px, 2px) scale(1.01); }
+      80% { transform: translate(3px, 1px) scale(0.99); }
+      100% { transform: translate(0, 0) scale(1); }
+    }
+
+    @keyframes orbit {
+      0% { transform: rotate(0deg) translateX(40px) rotate(0deg); }
+      100% { transform: rotate(360deg) translateX(40px) rotate(-360deg); }
+    }
+
+    @keyframes spin-cube {
+      0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+      100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(360deg); }
+    }
+
+    /* Responsive */
+    @media (max-width: 992px) {
+      .recipe-pane {
+        grid-template-columns: 1fr;
+        gap: 30px;
+      }
+      .recipe-visual {
+        height: 280px;
+      }
+      .hero-title {
+        font-size: 2.8rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+      .hero-title {
+        font-size: 2.3rem;
+      }
+      .git-box {
+        padding: 30px 20px;
+      }
+      .code-block {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+      }
+      .btn-copy {
+        align-self: flex-end;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <header>
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <div class="logo-icon"></div>
+        <span>AutoTD</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home (웹 생성기)</a></li>
+        <li><a href="#concepts">핵심 개념</a></li>
+        <li><a href="#architecture">시스템 아키텍처</a></li>
+        <li><a href="#recipes">레시피 구성</a></li>
+        <li><a href="#git">GitHub</a></li>
+        <li><a href="https://github.com/slugmilk/AutoTD" class="btn-github" target="_blank">Repository</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-tag">SMIT Computational Art 2026</div>
+      <h1 class="hero-title">텍스트 프롬프트를 터치디자이너<br/>미디어아트로 자동 변환</h1>
+      <p class="hero-desc">
+        AutoTD는 AI 오케스트레이션과 TouchDesigner를 실시간으로 결합하는 미디어아트 생성 플랫폼입니다. 사용자의 직관적인 텍스트 입력을 바탕으로 복잡한 파라미터를 분석하고, 검증된 TouchDesigner 템플릿 노드 체인을 조화롭게 구성하여 비주얼을 실시간 렌더링합니다.
+      </p>
+      <div class="hero-buttons">
+        <a href="index.html" class="btn-primary">실시간 생성기 실행</a>
+        <a href="#architecture" class="btn-secondary">기술 문서 보기</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Core Concepts Section -->
+  <section class="container" id="concepts" style="padding: 60px 0;">
+    <h2 class="section-title">핵심 기술 개념</h2>
+    <p class="section-subtitle">AutoTD가 AI와 미디어아트를 연결하기 위해 구현한 세 가지 주요 기능 레이어</p>
+    
+    <div class="concept-grid">
+      <!-- Card 1 -->
+      <div class="card">
+        <div class="card-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+        <h3 class="card-title">LLM 파라미터 매핑 & 튜닝</h3>
+        <p class="card-text">
+          Ollama 및 Gemini 아키텍처를 기반으로 작성된 LLM 라우터가 입력된 텍스트의 무드, 강도, 속도, 노이즈 값을 다차원 벡터로 분석합니다. 이를 매핑 스키마(TDParameters)로 가공하여 터치디자이너에서 실제 변수로 직접 연동할 수 있는 뼈대를 만듭니다.
+        </p>
+      </div>
+      <!-- Card 2 -->
+      <div class="card">
+        <div class="card-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+        </div>
+        <h3 class="card-title">사전 검증된 Recipe 매핑</h3>
+        <p class="card-text">
+          제한 없는 LLM의 임의 노드 생성이 주는 불안정성을 막기 위해, 시스템은 검증된 3대 레시피(Particle, Glitch, 3D Orb) 구조를 하드코딩된 노드 체인으로 갖추고 있습니다. AI는 프롬프트 무드에 가장 알맞은 레시피를 매핑 및 활성화합니다.
+        </p>
+      </div>
+      <!-- Card 3 -->
+      <div class="card">
+        <div class="card-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 12a11 11 0 1 1-22 0 11 11 0 0 1 22 0z"></path><path d="M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0z"></path></svg>
+        </div>
+        <h3 class="card-title">TouchDesigner MCP Server</h3>
+        <p class="card-text">
+          FastAPI 백엔드 서버와 터치디자이너 내부의 Web Server DAT(포트 9980) 간에 커스텀 MCP 연결을 수립합니다. 실시간 렌더링된 render TOP 미리보기 데이터, GLB/OBJ의 실시간 파싱 바운딩 박스 상태, 그리고 텍스처 composite 연결 검증 텔레메트리를 주고받습니다.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture Section -->
+  <section class="arch-section" id="architecture">
+    <div class="container">
+      <h2 class="section-title">시스템 파이프라인 아키텍처</h2>
+      <p class="section-subtitle">프론트엔드 입력부터 터치디자이너 실시간 렌더링까지 이어지는 데이터 흐름</p>
+      
+      <div class="flowchart">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-info">
+            <h4 class="flow-title">사용자 프롬프트 입력 (Web UI)</h4>
+            <p class="flow-desc">원하는 분위기(예: "우주 속을 유영하는 몽환적인 파란색 입자")를 입력하고 생성 요청을 보냅니다.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-info">
+            <h4 class="flow-title">LLM 분석 및 구조화 (FastAPI / Ollama)</h4>
+            <p class="flow-desc">LLM Router가 프롬프트를 분석하여 Recipe ID와 파라미터 값(속도, 밝기, 색상 모드, 노이즈)을 JSON 형식으로 추출합니다.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-info">
+            <h4 class="flow-title">외부 에셋 생성 연동 (ComfyUI / Trellis) [실험단계]</h4>
+            <p class="flow-desc">외부 이미지(ComfyUI) 및 3D 메시(Trellis GLB)를 생성하고 텍스처를 obj/fbx 형식으로 파싱해 TouchDesigner 호환용 에셋으로 준비합니다.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-info">
+            <h4 class="flow-title">TouchDesigner Node Apply (MCP Server)</h4>
+            <p class="flow-desc">Web Server DAT 통신을 통해 터치디자이너 내부에 파라미터를 인젝션하고, 해당 레시피의 노드 구조(SOP/POP/TOP)를 실시간 업데이트합니다.</p>
+          </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+        <div class="flow-step">
+          <div class="flow-num">5</div>
+          <div class="flow-info">
+            <h4 class="flow-title">비주얼 피드백 및 렌더링 텔레메트리 반환</h4>
+            <p class="flow-desc">터치디자이너 내부의 해상도 검증, geometry의 point/primitive 계산 로그와 최종 결과물 TOP 렌더링 이미지를 실시간으로 웹 스크린에 반영합니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recipes Section -->
+  <section class="recipes-section" id="recipes">
+    <div class="container">
+      <h2 class="section-title">비주얼 레시피 프로필</h2>
+      <p class="section-subtitle">터치디자이너와 연계되는 세 가지 템플릿의 비주얼 특징과 전송되는 파라미터 설정</p>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchRecipe('particle')">Dreamy Particle</button>
+        <button class="tab-btn" onclick="switchRecipe('glitch')">Glitch Feedback</button>
+        <button class="tab-btn" onclick="switchRecipe('3d')">Soft 3D Orb</button>
+      </div>
+
+      <!-- Particle -->
+      <div class="recipe-pane active" id="recipe-particle" data-recipe="particle">
+        <div class="recipe-visual">
+          <div class="visual-dots"></div>
+          <div class="visual-glow"></div>
+        </div>
+        <div class="recipe-info">
+          <span class="recipe-tag">Particle Template</span>
+          <h3>Dreamy Particle Field</h3>
+          <p class="recipe-desc">
+            부드럽게 흘러가는 입자와 신비로운 분위기를 연출하기 위한 레시피입니다. 자연, 우주, 꿈, 몽환적 정원 등의 콘셉트에 추천됩니다. POP(입자)와 피드백 TOP을 결합해 긴 잔상이 남는 시각 스타일을 제공합니다.
+          </p>
+          <div class="recipe-params-list">
+            <div class="param-item">
+              <div class="param-label">Particle Density</div>
+              <div class="param-value">0.7 ~ 1.0 (최대)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Noise Strength</div>
+              <div class="param-value">0.3 ~ 0.5 (부드러운 기류)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Motion Speed</div>
+              <div class="param-value">0.2 ~ 0.4 (느긋하게)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Glow Value</div>
+              <div class="param-value">0.8 (강한 아우라)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Glitch -->
+      <div class="recipe-pane" id="recipe-glitch" data-recipe="glitch">
+        <div class="recipe-visual">
+          <div class="visual-lines"></div>
+          <div class="visual-glow"></div>
+        </div>
+        <div class="recipe-info">
+          <span class="recipe-tag">Feedback Template</span>
+          <h3>Glitch Feedback Field</h3>
+          <p class="recipe-desc">
+            격렬한 피드백 루프와 디지털 왜곡 현상(글리치)을 동반한 테크니컬 스타일입니다. 사이버펑크, 네온, 카오스, 일렉트로닉 비주얼 등의 다이내믹한 텍스트에 매핑됩니다.
+          </p>
+          <div class="recipe-params-list">
+            <div class="param-item">
+              <div class="param-label">Feedback Opacity</div>
+              <div class="param-value">0.92 ~ 0.97 (긴 잔상)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Noise Strength</div>
+              <div class="param-value">0.8 ~ 1.0 (강렬한 난류)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Motion Speed</div>
+              <div class="param-value">0.7 ~ 0.9 (빠른 변화)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Color Preset</div>
+              <div class="param-value">Neon / Cool (강렬한 대비)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3D Orb -->
+      <div class="recipe-pane" id="recipe-3d" data-recipe="3d">
+        <div class="recipe-visual">
+          <div class="visual-cube"></div>
+          <div class="visual-glow"></div>
+        </div>
+        <div class="recipe-info">
+          <span class="recipe-tag">3D Geometry Template</span>
+          <h3>Soft 3D Orb</h3>
+          <p class="recipe-desc">
+            회전하는 3D 지오메트리 조형과 조명, 은은한 기하학적 배치를 사용하는 조각상 및 오브제 스타일입니다. 미니멀, 조각, 3D 구체, 가상 건축 등의 미학을 구현합니다.
+          </p>
+          <div class="recipe-params-list">
+            <div class="param-item">
+              <div class="param-label">Geometry Bounds</div>
+              <div class="param-value">Auto Normalize (원점 고정)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Rotation Speed</div>
+              <div class="param-value">0.3 ~ 0.5 (일정한 회전)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">Light Strength</div>
+              <div class="param-value">0.6 (부드러운 음영)</div>
+            </div>
+            <div class="param-item">
+              <div class="param-label">File Type</div>
+              <div class="param-value">OBJ / GLB (자동 변환 지원)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Git Section -->
+  <section class="git-section" id="git">
+    <div class="container">
+      <div class="git-box">
+        <div class="git-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+        </div>
+        <h2 class="section-title">GitHub Repository 및 설치 안내</h2>
+        <p class="section-subtitle" style="margin-bottom: 15px;">이 프로젝트는 오픈 소스로 개발되고 있습니다. 로컬 환경에서 클론하여 손쉽게 실행해 보세요.</p>
+        
+        <div class="code-block">
+          <span class="code-text" id="git-command">git clone https://github.com/slugmilk/AutoTD.git</span>
+          <button class="btn-copy" onclick="copyGitCommand()">Copy Link</button>
+        </div>
+        
+        <div style="text-align: left; max-width: 600px; margin: 0 auto; color: var(--text-secondary); font-size: 0.95rem;">
+          <p style="margin-bottom: 8px;"><strong>1. 가상환경 및 의존성 설치:</strong></p>
+          <code style="display:block; background:#020203; padding:8px 15px; border-radius:6px; font-family:monospace; margin-bottom:15px; color:#fff;">pip install -r requirements.txt</code>
+          
+          <p style="margin-bottom: 8px;"><strong>2. 백엔드 및 클라이언트 웹 서버 실행:</strong></p>
+          <code style="display:block; background:#020203; padding:8px 15px; border-radius:6px; font-family:monospace; margin-bottom:15px; color:#fff;">python server.py</code>
+          
+          <p style="margin-bottom: 8px;"><strong>3. 터치디자이너 연동:</strong></p>
+          <span style="display:block; font-size:0.9rem; line-height: 1.5;">프로젝트 디렉터리에 포함된 <code>AutoTD_MCP.toe</code> 파일을 실행하면, 포트 9980에서 웹 소켓 클라이언트가 수신 대기 상태가 됩니다.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div>
+          <a href="#" class="logo" style="margin-bottom: 10px;">
+            <div class="logo-icon" style="width:22px; height:22px;"></div>
+            <span style="font-size:1.1rem;">AutoTD</span>
+          </a>
+          <p class="footer-copy">SMIT 컴퓨테이셔널예술 전공 2026</p>
+        </div>
+        <div style="text-align: right;">
+          <p>© 2026 AutoTD Web. Designed by Yumin Kim.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Tab switching logic
+    function switchRecipe(recipeId) {
+      // Deactivate all tab buttons
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      
+      // Deactivate all panes
+      const panes = document.querySelectorAll('.recipe-pane');
+      panes.forEach(pane => pane.classList.remove('active'));
+      
+      // Find targets
+      const activeBtn = Array.from(buttons).find(btn => btn.innerText.toLowerCase().includes(recipeId));
+      if (activeBtn) activeBtn.classList.add('active');
+      
+      const activePane = document.getElementById(`recipe-${recipeId}`);
+      if (activePane) activePane.classList.add('active');
+    }
+
+    // Command copy logic
+    function copyGitCommand() {
+      const commandText = document.getElementById('git-command').innerText;
+      navigator.clipboard.writeText(commandText).then(() => {
+        const copyBtn = document.querySelector('.btn-copy');
+        copyBtn.innerText = 'Copied!';
+        copyBtn.style.borderColor = 'var(--accent-green)';
+        copyBtn.style.color = 'var(--accent-green)';
+        
+        setTimeout(() => {
+          copyBtn.innerText = 'Copy Link';
+          copyBtn.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+          copyBtn.style.color = 'var(--text-secondary)';
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

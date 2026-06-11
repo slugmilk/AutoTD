@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoTD Web - Turn Ideas Into TouchDesigner Media Art with AI</title>
+  <meta name="description" content="AutoTD Web converts your text ideas into TouchDesigner-based media art automatically using generative AI. No coding required." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav id="navbar" class="navbar">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 2L4 8V20L14 26L24 20V8L14 2Z" stroke="white" stroke-width="1.5" fill="none"/>
+          <path d="M14 2L14 26M4 8L24 20M24 8L4 20" stroke="white" stroke-width="0.8" opacity="0.4"/>
+          <circle cx="14" cy="14" r="3" fill="white"/>
+        </svg>
+        <span>AutoTD Web</span>
+      </a>
+      <div class="nav-links">
+        <a href="#gallery" class="nav-link">Gallery</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="info.html" class="nav-link" target="_blank">Docs</a>
+        <a href="#signin" class="btn-signin" id="nav-signin">Sign In</a>
+      </div>
+      <button class="nav-hamburger" id="hamburger" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#gallery" class="mobile-link">Gallery</a>
+    <a href="#features" class="mobile-link">Features</a>
+    <a href="#how-it-works" class="mobile-link">How It Works</a>
+    <a href="info.html" class="mobile-link" target="_blank">Docs</a>
+    <a href="#signin" class="mobile-link sign">Sign In</a>
+  </div>
+
+  <section class="hero" id="hero">
+    <canvas id="particle-canvas"></canvas>
+    <div class="hero-grid">
+      <!-- Left Panel -->
+      <div class="hero-left">
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          TouchDesigner &middot; Generative AI &middot; Creative Coding
+        </div>
+        <h1 class="hero-title">AutoTD Web</h1>
+        <p class="hero-subtitle">Turn your ideas into TouchDesigner-based<br/>media art with the power of AI.</p>
+
+        <div class="prompt-box">
+          <textarea
+            id="prompt-input"
+            class="prompt-textarea"
+            placeholder="Describe the visual you want to create..."
+            maxlength="1000"
+          ></textarea>
+          <div class="prompt-count"><span id="char-count">0</span> / 1000</div>
+        </div>
+
+        <div class="source-options" aria-label="Source generation options">
+          <div class="source-status-row">
+            <span class="source-badge active">● Procedural TouchDesigner Recipe: active</span>
+          </div>
+          <label class="source-check source-ready" title="Optional OpenAI image source generation">
+            <input type="checkbox" id="source-generate-image" />
+            <span>
+              <strong>External Image Source</strong>
+              <em>OpenAI Images · ready</em>
+            </span>
+          </label>
+          <label class="source-check experimental" title="Experimental – not available in this MVP demo">
+            <input type="checkbox" id="source-generate-3d" disabled />
+            <span>
+              <strong>External 3D Source</strong>
+              <em>Trellis · experimental</em>
+            </span>
+          </label>
+        </div>
+
+        <button class="btn-generate" id="generate-btn">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M10 2L11.8 7.8L18 10L11.8 12.2L10 18L8.2 12.2L2 10L8.2 7.8L10 2Z" fill="currentColor"/>
+          </svg>
+          Generate
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8H13M13 8L9 4M13 8L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+
+      </div>
+
+      <!-- Right Panel: Preview -->
+      <div class="hero-right">
+        <div class="preview-panel">
+          <div class="preview-inner" id="preview-inner">
+            <img id="preview-image" alt="TouchDesigner preview" hidden />
+            <canvas id="preview-canvas" hidden></canvas>
+            <div class="preview-overlay" id="preview-overlay">
+              <div class="preview-idle-msg">
+                <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+                  <path d="M20 5L22.5 13H31L24.25 18L26.75 26L20 21L13.25 26L15.75 18L9 13H17.5L20 5Z" fill="rgba(255,255,255,0.15)"/>
+                </svg>
+                <p>TouchDesigner preview will appear here</p>
+              </div>
+            </div>
+          </div>
+          <div class="export-bar">
+            <span class="export-label">EXPORT</span>
+            <button class="export-btn" id="export-tox">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 10H13M10 7V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>TOX</span>
+              <small>TouchDesigner</small>
+            </button>
+            <button class="export-btn" id="export-mp4">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="5" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M14 8L18 6V14L14 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>MP4</span>
+              <small>Video</small>
+            </button>
+            <button class="export-btn" id="export-gif">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2"/></svg>
+              <span>GIF</span>
+              <small>Animation</small>
+            </button>
+          </div>
+        </div>
+        <div class="runtime-panel">
+          <div class="runtime-row">
+            <span>Source</span>
+            <strong id="source-status">No source generated yet</strong>
+          </div>
+          <div class="source-list" id="source-list"></div>
+          <div class="runtime-row">
+            <span>TD Plan</span>
+            <strong id="td-plan-status">Waiting for prompt</strong>
+          </div>
+          <pre class="td-plan-text" id="td-plan-text">Run Generate to inspect the Ollama node plan.</pre>
+        </div>
+      </div>
+    </div>
+    <!-- Scroll hint -->
+    <div class="scroll-hint">
+      <div class="scroll-line"></div>
+      <span>Scroll</span>
+    </div>
+  </section>
+
+  <!-- PROJECT OVERVIEW -->
+  <section class="section section-dark" id="about">
+    <div class="container">
+      <div class="two-col">
+        <div class="col-text">
+          <div class="section-tag">Project Overview</div>
+          <h2 class="section-title">Generate TouchDesigner-based<br/>media art from text prompts.</h2>
+          <div class="divider"></div>
+          <p class="section-body">
+            AutoTD Web은 사용자가 텍스트로 미디어아트 아이디어를 입력하면, 생성형 AI 에이전트가 이를 해석해 TouchDesigner 기반 결과물로 변환하는 웹 플랫폼입니다.
+          </p>
+          <p class="section-body">
+            TouchDesigner는 강력한 미디어아트 제작 도구지만 노드 구조 이해, 파라미터 조정, 렌더링 흐름 파악 등 초보자에게 높은 학습 장벽이 있습니다. AutoTD Web은 이 과정을 웹 인터페이스와 AI 에이전트로 단순화합니다.
+          </p>
+          <p class="section-body highlight-text">
+            목표는 사용자의 텍스트 아이디어를 사전 구축된 TouchDesigner 템플릿과 연결해 빠르게 시각 결과로 확인할 수 있는 제작 흐름을 제안하는 것입니다.
+          </p>
+        </div>
+        <div class="col-visual">
+          <div class="mockup-card">
+            <div class="mockup-bar">
+              <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+              <span class="mockup-title">AutoTD Web</span>
+            </div>
+            <div class="mockup-body">
+              <div class="mockup-prompt-box">
+                <p class="mockup-prompt-text">빛과 입자로 이루어진 꿈의 정원,<br/>천천히 흐르는 선과 부드러운 움직임,<br/>몽환적인 분위기</p>
+                <span class="mockup-counter">47 / 1000</span>
+                <button class="mockup-send">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7H12M12 7L8 3M12 7L8 11" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+              <div class="mockup-tabs">
+                <span class="mockup-tab active">Text</span>
+                <span class="mockup-tab">Voice</span>
+                <span class="mockup-tab">Example</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEMS -->
+  <section class="section section-light" id="problems">
+    <div class="container">
+      <div class="section-tag dark">Problems</div>
+      <h2 class="section-title dark">생성형 AI는 텍스트 프롬프트만으로<br/>이미지를 빠르게 만들 수 있게 했지만...</h2>
+      <div class="divider dark"></div>
+      <div class="problem-grid">
+        <div class="problem-card">
+          <div class="problem-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect x="4" y="6" width="24" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M10 13H22M10 18H18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="26" cy="9" r="4" fill="#1a1a1a" stroke="currentColor" stroke-width="1.5"/><path d="M24.5 9H27.5M26 7.5V10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </div>
+          <h3 class="problem-title">Coding Agent 기반 제작</h3>
+          <p class="problem-desc">Codex, Claude Code 같은 에이전트 시스템은 텍스트 입력으로 결과물을 만들 수 있지만, 미디어아트에서는 단순한 이미지 조합이나 제한적인 인터랙션에 머무르는 경우가 많습니다.</p>
+          <div class="problem-link">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7H12M12 7L8 3M12 7L8 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Codex로 시작한 미디어아트
+          </div>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><circle cx="10" cy="16" r="4" stroke="currentColor" stroke-width="1.5"/><circle cx="22" cy="10" r="4" stroke="currentColor" stroke-width="1.5"/><circle cx="22" cy="22" r="4" stroke="currentColor" stroke-width="1.5"/><path d="M14 14L18 12M14 18L18 20" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+          </div>
+          <h3 class="problem-title">TouchDesigner MCP Server 기반 제작</h3>
+          <p class="problem-desc">LLM과 TouchDesigner MCP Server를 연결하면 노드 생성과 수정이 가능해집니다. 다만 사용자가 AI와 TouchDesigner 구조를 어느 정도 이해해야 안정적으로 활용할 수 있다는 한계가 있습니다.</p>
+          <div class="problem-link">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7H12M12 7L8 3M12 7L8 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            touchdesigner-mcp github
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY AUTOTD -->
+  <section class="section section-dark" id="features">
+    <div class="container">
+      <div class="why-grid">
+        <div class="why-left">
+          <div class="section-tag">Why AutoTD Web?</div>
+          <h2 class="section-title">비전공자와 전공자 모두<br/>더 빠르고 직관적으로</h2>
+          <div class="divider"></div>
+          <p class="section-body">
+            AutoTD Web은 기존 미디어아트 생성 파이프라인의 한계를 보완해, 비전공자에게는 복잡한 기술 지식 없이 제작을 경험할 수 있는 환경을 제공하고, 전공자에게는 반복적인 초기 세팅 시간을 줄여주는 중간 도구 역할을 목표로 합니다.
+          </p>
+          <p class="section-body">
+            사용자는 템플릿을 선택하고 프롬프트를 입력합니다. 에이전트는 목표를 분석하고, 필요한 이미지 또는 3D 소스를 생성하거나 선택한 뒤 TouchDesigner MCP Server와 연결해 최종 미디어아트 결과물로 변환합니다.
+          </p>
+          <p class="section-body">
+            이를 통해 복잡한 노드 구조를 직접 다루지 않아도 창작 아이디어를 빠르게 실험하고 발전시킬 수 있습니다.
+          </p>
+        </div>
+        <div class="why-right">
+          <div class="feature-cards">
+            <div class="feature-card">
+              <div class="feature-num">01</div>
+              <h4>비전공자</h4>
+              <p>텍스트 입력만으로 고품질 미디어아트를 직관적으로 제작하고 경험할 수 있는 새로운 접근 방식을 제공합니다.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-num">02</div>
+              <h4>전공자</h4>
+              <p>초기 프로토타입과 반복적인 수정 시간을 줄여주는 효율적인 보조 도구로 활용할 수 있습니다.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-num">03</div>
+              <h4>기술적 의의</h4>
+              <p>생성형 AI와 TouchDesigner 워크플로를 유기적으로 연결해 실제 미디어아트 제작 파이프라인으로 확장합니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section section-light" id="how-it-works">
+    <div class="container">
+      <div class="section-tag dark">How It Works</div>
+      <h2 class="section-title dark center">5-Step Generation Pipeline</h2>
+      <p class="section-sub dark center">텍스트 한 문장으로 시작해 TouchDesigner 미디어아트까지</p>
+      <div class="divider dark center"></div>
+      <div class="pipeline-steps">
+        <div class="pipeline-step" data-step="1">
+          <div class="step-card">
+            <div class="step-num">1</div>
+            <div class="step-icon">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="4" width="28" height="28" rx="6" stroke="currentColor" stroke-width="1.5"/><path d="M10 14H26M10 20H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="22" y="16" width="10" height="10" rx="3" fill="currentColor" opacity="0.2"/><path d="M25 21H29M27 19V23" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </div>
+            <h3>TEXT PROMPT INPUT</h3>
+            <p>사용자가 원하는 화면, 분위기, 콘셉트를 텍스트로 입력합니다.</p>
+          </div>
+          <div class="step-arrow">→</div>
+        </div>
+        <div class="pipeline-step" data-step="2">
+          <div class="step-card">
+            <div class="step-num">2</div>
+            <div class="step-icon">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="10" stroke="currentColor" stroke-width="1.5"/><circle cx="18" cy="18" r="5" stroke="currentColor" stroke-width="1"/><path d="M18 8V12M18 24V28M8 18H12M24 18H28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <h3>AI AGENT ANALYSIS</h3>
+            <p>AI 에이전트가 프롬프트를 분석하고 시각 요소와 생성 전략을 정의합니다.</p>
+          </div>
+          <div class="step-arrow">→</div>
+        </div>
+        <div class="pipeline-step" data-step="3">
+          <div class="step-card">
+            <div class="step-num">3</div>
+            <div class="step-icon">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="8" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="8" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="22" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="22" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/></svg>
+            </div>
+            <h3>SOURCE GENERATION</h3>
+            <p>필요한 이미지 또는 3D 자산을 생성하거나 선택합니다.</p>
+          </div>
+          <div class="step-arrow">→</div>
+        </div>
+        <div class="pipeline-step" data-step="4">
+          <div class="step-card">
+            <div class="step-num">4</div>
+            <div class="step-icon">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="14" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="24" y="14" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="6" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="22" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M12 18H14M22 18H24M18 14V12M18 22V24" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            </div>
+            <h3>TOUCHDESIGNER MCP<br/>TEMPLATE GENERATION</h3>
+            <p>TouchDesigner MCP Server와 템플릿 기반 노드 네트워크를 통해 미디어아트를 생성합니다.</p>
+          </div>
+          <div class="step-arrow">→</div>
+        </div>
+        <div class="pipeline-step last" data-step="5">
+          <div class="step-card">
+            <div class="step-num">5</div>
+            <div class="step-icon">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="4" y="6" width="28" height="18" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M13 28H23M18 24V28" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 15L18 19L22 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3>FINAL OUTPUT EXPORT</h3>
+            <p>완성된 결과물을 미리보기하고 다양한 포맷으로 export합니다.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- MVP Scope -->
+      <div class="mvp-box">
+        <div class="mvp-tag">MVP Scope</div>
+        <h3>핵심 생성 흐름을 검증하는 프로토타입</h3>
+        <p>AutoTD Web의 MVP는 모든 기능을 포함한 완성형 플랫폼이 아니라, 텍스트 입력을 TouchDesigner 결과물로 연결하는 핵심 생성 흐름을 검증하는 데 초점을 맞춥니다. 이번 단계에서는 미리 설계된 TouchDesigner 템플릿을 기반으로 결과물을 생성하는 제한적 프로토타입을 구현합니다.</p>
+        <div class="mvp-features">
+          <div class="mvp-feature included">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#22c55e" opacity="0.2"/><path d="M5 8L7 10L11 6" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/></svg>
+            프롬프트 입력 & 에이전트 해석
+          </div>
+          <div class="mvp-feature included">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#22c55e" opacity="0.2"/><path d="M5 8L7 10L11 6" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/></svg>
+            템플릿 기반 TD 결과물 생성
+          </div>
+          <div class="mvp-feature included">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="#22c55e" opacity="0.2"/><path d="M5 8L7 10L11 6" stroke="#22c55e" stroke-width="1.5" stroke-linecap="round"/></svg>
+            TOX / MP4 미리보기 & 출력
+          </div>
+          <div class="mvp-feature excluded">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.1)"/><path d="M6 6L10 10M10 6L6 10" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/></svg>
+            로그인 / DB 저장 / 갤러리
+          </div>
+          <div class="mvp-feature excluded">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.1)"/><path d="M6 6L10 10M10 6L6 10" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/></svg>
+            공유 / 프리셋 저장
+          </div>
+          <div class="mvp-feature excluded">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" fill="rgba(255,255,255,0.1)"/><path d="M6 6L10 10M10 6L6 10" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-linecap="round"/></svg>
+            레퍼런스 이미지 업로드
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECHNOLOGY -->
+  <section class="section section-dark" id="tech">
+    <div class="container">
+      <div class="section-tag">Technology & Implementation</div>
+      <h2 class="section-title">프론트엔드, AI 에이전트,<br/>TouchDesigner 실행 환경의 통합.</h2>
+      <div class="divider"></div>
+      <div class="tech-grid">
+        <div class="tech-desc">
+          <p>AutoTD Web은 프론트엔드, AI 에이전트, TouchDesigner 실행 환경, 결과물 출력 모듈로 구성된 구조를 가집니다.</p>
+          <p>프론트엔드는 사용자의 템플릿 선택, 텍스트 입력, 생성 요청, 상태 확인, 결과 미리보기를 담당하고, 백엔드는 요청을 받아 전체 생성 흐름을 오케스트레이션합니다.</p>
+          <p>AI 에이전트는 사용자의 프롬프트를 분석해 스타일, 움직임, 색감, 출력 형식 등의 파라미터를 구조화하고 TouchDesigner 템플릿에 전달 가능한 형태로 정리합니다.</p>
+          <p>이후 TouchDesigner MCP Server를 통해 템플릿 기반 네트워크를 실행하고, 최종 결과를 TOX 및 MP4 파일로 출력합니다.</p>
+        </div>
+        <div class="tech-stack">
+          <div class="tech-layer">
+            <div class="layer-pill">Frontend</div>
+            <p class="layer-desc">Prompt Input / Preview UI / Download Interface</p>
+          </div>
+          <div class="layer-connector"></div>
+          <div class="tech-layer">
+            <div class="layer-pill">Backend</div>
+            <p class="layer-desc">Request Handling / Orchestration / Job Control</p>
+          </div>
+          <div class="layer-connector"></div>
+          <div class="tech-layer">
+            <div class="layer-pill">AI Agent</div>
+            <p class="layer-desc">Prompt Analysis / Style Classification / Parameter Structuring</p>
+          </div>
+          <div class="layer-connector"></div>
+          <div class="tech-layer">
+            <div class="layer-pill">TouchDesigner</div>
+            <p class="layer-desc">Template Execution / Node Control / Media Art Generation</p>
+          </div>
+          <div class="layer-connector"></div>
+          <div class="tech-layer">
+            <div class="layer-pill">Output</div>
+            <p class="layer-desc">TOX Export / MP4 Render / GIF Conversion (Optional)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SYSTEM PIPELINE -->
+  <section class="section section-light" id="pipeline">
+    <div class="container">
+      <div class="section-tag dark">System Pipeline</div>
+      <h2 class="section-title dark">상세 시스템 아키텍처</h2>
+      <p class="section-sub dark">AutoTD Web의 시스템 파이프라인은 사용자의 텍스트 입력에서 시작해, AI가 프롬프트를 해석하고 사전 구축된 TouchDesigner 템플릿 중 적절한 구조를 선택한 뒤 필요한 시각 소스를 결합해 최종 결과물을 생성하는 흐름으로 구성됩니다.</p>
+      <div class="divider dark"></div>
+      <div class="sys-pipeline">
+        <div class="sys-row top">
+          <div class="sys-node input">
+            <div class="sys-node-num">1</div>
+            <p class="sys-node-title">User Input</p>
+            <p class="sys-node-sub">Template type + media art prompt</p>
+            <div class="sys-chips">
+              <span class="sys-chip">Particle / 3D-based</span>
+              <span class="sys-chip">2D based</span>
+              <span class="sys-chip">Text prompt / concept / idea</span>
+            </div>
+          </div>
+          <div class="sys-arrow">→</div>
+          <div class="sys-node agent">
+            <div class="sys-node-num">2</div>
+            <p class="sys-node-title">AI Agent</p>
+            <p class="sys-node-sub">LLM & orchestration</p>
+          </div>
+          <div class="sys-arrow">→</div>
+          <div class="sys-node analysis">
+            <div class="sys-node-num">3</div>
+            <p class="sys-node-title">Prompt Analysis</p>
+            <p class="sys-node-sub">Extract style, mood, motion, keywords</p>
+          </div>
+          <div class="sys-arrow diagonal">→</div>
+          <div class="sys-node templates">
+            <div class="sys-node-num">5</div>
+            <p class="sys-node-title">Dynamic Generation Plans</p>
+            <p class="sys-node-sub">Custom operator layouts</p>
+            <div class="template-chips">
+              <span class="tmpl-chip">Particle Plan</span>
+              <span class="tmpl-chip">3D or hybrid generation plans</span>
+              <span class="tmpl-chip">2D Plan</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sys-mid-row">
+          <div class="sys-node source">
+            <div class="sys-node-num">6</div>
+            <p class="sys-node-title">Source Planning</p>
+            <p class="sys-node-sub">Determine required assets & composition</p>
+          </div>
+          <div class="sys-arrow">→</div>
+          <div class="sys-col-gen">
+            <div class="sys-node gen-img">
+              <p class="sys-node-title">Image Generator</p>
+              <p class="sys-node-sub">Create visual assets</p>
+            </div>
+            <div class="sys-node gen-3d">
+              <p class="sys-node-title">3D Generator</p>
+              <p class="sys-node-sub">Generate 3D objects</p>
+            </div>
+          </div>
+          <div class="sys-arrow">→</div>
+          <div class="sys-node td-runtime">
+            <div class="sys-node-num">8</div>
+            <p class="sys-node-title">TouchDesigner Runtime</p>
+            <div class="td-sub-nodes">
+              <div class="td-sub">
+                <p class="td-sub-title">MCP Server</p>
+                <p class="td-sub-desc">Bridge for assets, parameters, and network control</p>
+              </div>
+              <div class="td-sub">
+                <p class="td-sub-title">Template Engine</p>
+                <p class="td-sub-desc">Load template and apply assets + parameters</p>
+              </div>
+            </div>
+          </div>
+          <div class="sys-arrow">→</div>
+          <div class="sys-node preview">
+            <div class="sys-node-num">9</div>
+            <p class="sys-node-title">Preview</p>
+            <p class="sys-node-sub">Real-time visual preview</p>
+          </div>
+        </div>
+
+        <div class="sys-bottom-row">
+          <div class="sys-node param">
+            <div class="sys-node-num">7</div>
+            <p class="sys-node-title">Parameter Structuring</p>
+            <p class="sys-node-sub">Create TouchDesigner-ready parameter JSON: colors, speed, density, motion, paths</p>
+          </div>
+          <div class="sys-node adj">
+            <div class="sys-node-num">11</div>
+            <p class="sys-node-title">Parameter Adjustment</p>
+            <p class="sys-node-sub">Refine parameters and regenerate output</p>
+          </div>
+          <div class="sys-outputs">
+            <div class="sys-out tox">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M7 10H13M10 7V13" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              <span>TOX Export</span>
+              <small>TouchDesigner component</small>
+            </div>
+            <div class="sys-out mp4">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="5" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M14 8L18 6V14L14 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span>MP4 Output</span>
+              <small>Rendered preview video</small>
+            </div>
+            <div class="sys-out gallery">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="5" width="4" height="4" rx="1" fill="currentColor" opacity="0.5"/><rect x="11" y="5" width="4" height="4" rx="1" fill="currentColor" opacity="0.5"/><rect x="5" y="11" width="4" height="4" rx="1" fill="currentColor" opacity="0.5"/></svg>
+              <span>Gallery Save</span>
+              <small>Store project, thumbnail, metadata</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TIMELINE -->
+  <section class="section section-dark" id="timeline">
+    <div class="container">
+      <div class="section-tag">Timeline</div>
+      <h2 class="section-title">4주 개발 로드맵</h2>
+      <div class="divider"></div>
+      <div class="timeline-grid">
+        <div class="week-card week1">
+          <div class="week-label">1주차</div>
+          <ul>
+            <li class="done">웹 UI 초안 제작</li>
+            <li class="done">TouchDesigner Web Server DAT 연동</li>
+            <li class="done">WebSocket 통신 연결</li>
+            <li class="done">프롬프트/파라미터 수신 DAT 구성</li>
+            <li class="done">out1 미리보기 연결</li>
+            <li class="done">MCP Server 연동 확인</li>
+            <li class="done">GitHub 레포지토리 연결 및 푸시</li>
+          </ul>
+        </div>
+        <div class="week-card week2">
+          <div class="week-label">2주차</div>
+          <ul>
+            <li>생성형 AI 기반 프롬프트 해석 로직 설계</li>
+            <li>프롬프트 결과를 JSON 파라미터로 구조화하는 포맷 정의</li>
+            <li>AI 에이전트 역할 분리</li>
+            <li>프롬프트 분석, 파라미터 매핑, 자산 요청 흐름 정리</li>
+            <li>가비아 클라우드 서버와 TouchDesigner 파이프라인 설계</li>
+            <li>가비아 클라우드 서버 환경 연결</li>
+            <li>API 또는 WebSocket 기반 중계 구조 설계</li>
+            <li>TouchDesigner 템플릿과 연결할 공통 파라미터 스키마 정리</li>
+          </ul>
+        </div>
+        <div class="week-card week3">
+          <div class="week-label">3주차</div>
+          <ul>
+            <li>Particle / Feedback / 3D 템플릿 구조 제작</li>
+            <li>템플릿별 공통 입력 파라미터 연결</li>
+            <li>색감, 모션, 반응, 카메라 등 시각 매핑 조정</li>
+            <li>이미지 및 3D 자산 연동</li>
+            <li>템플릿 전환 구조 안정화</li>
+            <li>미리보기 결과 확인 및 반복 테스트</li>
+            <li>템플릿별 출력 품질 보정</li>
+          </ul>
+        </div>
+        <div class="week-card week4">
+          <div class="week-label">4주차</div>
+          <ul>
+            <li>전체 사용자 플로우 최종 정리</li>
+            <li>가비아 클라우드 서버와 TouchDesigner 연동 안정화</li>
+            <li>미리보기 및 export 기능 점검</li>
+            <li>TOX / MP4 출력 테스트</li>
+            <li>최종 데모 시나리오 구성</li>
+            <li>발표용 테스트 및 오류 수정</li>
+            <li>여유 시간 확보 시 WebGL 기반 결과물 렌더링 시도</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPECTED IMPACT -->
+  <section class="section impact-section" id="impact">
+    <div class="impact-bg"></div>
+    <div class="container">
+      <div class="section-tag">Expected Impact</div>
+      <h2 class="section-title impact-title">미디어아트 창작의 진입장벽을<br/>낮춥니다.</h2>
+      <div class="impact-content">
+        <p class="impact-desc">
+          AutoTD Web은 TouchDesigner 기반 미디어아트 제작의 진입장벽을 낮춰, 사용자가 복잡한 노드 구조를 전문적으로 이해하지 않아도 창작 아이디어를 빠르게 시각화할 수 있도록 지원합니다.
+        </p>
+        <div class="impact-points">
+          <div class="impact-point">
+            <div class="impact-icon">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="12" stroke="white" stroke-width="1.5"/><path d="M9 14L12 17L19 11" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <h4>비전공자 관점</h4>
+              <p>텍스트 입력만으로 고품질 미디어아트를 직관적으로 제작하고 경험할 수 있는 새로운 접근 방식을 제공합니다.</p>
+            </div>
+          </div>
+          <div class="impact-point">
+            <div class="impact-icon">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M14 4L16.5 10H23L17.5 13.5L20 20L14 16.5L8 20L10.5 13.5L5 10H11.5L14 4Z" stroke="white" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+              <h4>전공자 관점</h4>
+              <p>초기 프로토타입과 반복 수정 시간을 줄여주는 효율적인 보조 도구 역할을 수행합니다.</p>
+            </div>
+          </div>
+          <div class="impact-point">
+            <div class="impact-icon">
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M6 14C6 9.58 9.58 6 14 6C18.42 6 22 9.58 22 14C22 18.42 18.42 22 14 22" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M6 14C6 18.42 9.58 22 14 22" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/><path d="M14 10V14L16 16" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </div>
+            <div>
+              <h4>기술적 의의</h4>
+              <p>생성형 AI와 TouchDesigner 워크플로를 연결함으로써, 단순한 2D 이미지 생성을 넘어 실제 미디어아트 제작 파이프라인으로 확장되는 가능성을 제시합니다.</p>
+            </div>
+          </div>
+        </div>
+        <p class="impact-closing">
+          궁극적으로는 창작 발상과 기술 구현 사이의 간격을 좁히고, 더 많은 사용자가 미디어아트 창작에 접근할 수 있는 실험적 생태계를 조성하는 데 기여하고자 합니다.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <a href="#" class="nav-logo">
+            <svg width="24" height="24" viewBox="0 0 28 28" fill="none"><path d="M14 2L4 8V20L14 26L24 20V8L14 2Z" stroke="white" stroke-width="1.5" fill="none"/><path d="M14 2L14 26M4 8L24 20M24 8L4 20" stroke="white" stroke-width="0.8" opacity="0.4"/><circle cx="14" cy="14" r="3" fill="white"/></svg>
+            <span>AutoTD Web</span>
+          </a>
+          <p>Generate TouchDesigner-based media art<br/>from text prompts.</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-col">
+            <h5>Product</h5>
+            <a href="#features">Features</a>
+            <a href="#how-it-works">How It Works</a>
+            <a href="#pipeline">Docs</a>
+          </div>
+          <div class="footer-col">
+            <h5>Project</h5>
+            <a href="#about">Overview</a>
+            <a href="#tech">Technology</a>
+            <a href="#timeline">Timeline</a>
+          </div>
+          <div class="footer-col">
+            <h5>Connect</h5>
+            <a href="#">GitHub</a>
+            <a href="#">TouchDesigner</a>
+            <a href="#">Creative Coding</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 AutoTD Web · All rights reserved.</p>
+        <p>TouchDesigner · Generative AI · Creative Coding</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Generation Modal -->
+  <div class="gen-modal" id="gen-modal">
+    <div class="gen-modal-inner">
+      <div class="gen-spinner">
+        <div class="spinner-ring"></div>
+        <div class="spinner-dot"></div>
+      </div>
+      <h3>Generating your media art...</h3>
+      <!-- AI Thought Stream -->
+      <div class="ai-thought-box" id="ai-thought-box">
+        <div class="thought-header">
+          <span class="thought-dot"></span>
+          <span>AI Thought Stream</span>
+        </div>
+        <div class="thought-content" id="thought-content">Waiting for AI agent to analyze prompt...</div>
+      </div>
+      <div class="gen-steps">
+        <div class="gen-step active" id="gs1">Analyzing prompt</div>
+        <div class="gen-step" id="gs2">Planning visual structure</div>
+        <div class="gen-step" id="gs3">Generating assets</div>
+        <div class="gen-step" id="gs4">Running TouchDesigner node graph</div>
+        <div class="gen-step" id="gs5">Preparing preview</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js?v=keyword-op-family-v2"></script>
+</body>
+</html>
+
+

@@ -1,0 +1,9 @@
+﻿fastapi
+uvicorn[standard]
+google-genai
+python-dotenv
+httpx
+websockets
+gradio_client
+Pillow
+
