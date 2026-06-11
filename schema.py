@@ -11,6 +11,7 @@ class SourceOptions(BaseModel):
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., description='User text prompt')
     source: str = Field('', description='Optional path or URL of a source image/3D asset')
+    recipe_id: str = Field('auto', description='Forced recipe ID option (auto, dreamy_particle_field, glitch_feedback_field, soft_3d_orb)')
     source_options: SourceOptions = Field(default_factory=SourceOptions)
     # Legacy fields kept for backward-compat; all are now inferred from the prompt by the LLM
     style: str = 'Ethereal'
@@ -21,8 +22,8 @@ class GenerateRequest(BaseModel):
 
 
 class TDParameters(BaseModel):
-    recipe_id: Literal['feedback_2d', 'particle_field'] = 'feedback_2d'
-    template: Literal['particle', 'feedback', '3d'] = 'feedback'
+    recipe_id: Literal['dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'] = 'dreamy_particle_field'
+    template: Literal['particle', 'feedback', '3d'] = 'particle'
     concept_summary: str = ''
     visual_mood: str = ''
     use_comfyui_image: bool = False

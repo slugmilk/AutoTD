@@ -67,6 +67,30 @@
           <div class="prompt-count"><span id="char-count">0</span> / 1000</div>
         </div>
 
+        <!-- Visual Template Selector -->
+        <div class="recipe-selector-container">
+          <label class="recipe-selector-label">Visual Template / Recipe</label>
+          <div class="recipe-grid">
+            <button type="button" class="recipe-card active" data-value="auto" title="Auto (AI classification based on prompt)">
+              <span class="recipe-icon">✨</span>
+              <span class="recipe-name">Auto (AI)</span>
+            </button>
+            <button type="button" class="recipe-card" data-value="dreamy_particle_field" title="Dreamy Particle Field">
+              <span class="recipe-icon">🌸</span>
+              <span class="recipe-name">Dreamy</span>
+            </button>
+            <button type="button" class="recipe-card" data-value="glitch_feedback_field" title="Glitch Feedback Field">
+              <span class="recipe-icon">⚡</span>
+              <span class="recipe-name">Glitch</span>
+            </button>
+            <button type="button" class="recipe-card" data-value="soft_3d_orb" title="Soft 3D Orb">
+              <span class="recipe-icon">🔮</span>
+              <span class="recipe-name">Soft 3D</span>
+            </button>
+          </div>
+          <input type="hidden" id="recipe-select" value="auto" />
+        </div>
+
         <div class="source-options" aria-label="Source generation options">
           <div class="source-status-row">
             <span class="source-badge active">● Procedural TouchDesigner Recipe: active</span>
@@ -451,9 +475,9 @@
             <p class="sys-node-title">Dynamic Generation Plans</p>
             <p class="sys-node-sub">Custom operator layouts</p>
             <div class="template-chips">
-              <span class="tmpl-chip">Particle Plan</span>
-              <span class="tmpl-chip">3D or hybrid generation plans</span>
-              <span class="tmpl-chip">2D Plan</span>
+              <span class="tmpl-chip">Dreamy Particle</span>
+              <span class="tmpl-chip">Glitch Feedback</span>
+              <span class="tmpl-chip">Soft 3D Orb</span>
             </div>
           </div>
         </div>

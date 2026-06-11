@@ -323,18 +323,25 @@ class LLMRouter:
         if not isinstance(payload, dict):
             payload = {}
 
-        prompt_recipe = self._recipe_override_from_prompt(req.prompt)
-        recipe_id = str(payload.get('recipe_id') or prompt_recipe)
-        if recipe_id not in ('feedback_2d', 'particle_field'):
-            recipe_id = prompt_recipe
-        if prompt_recipe == 'feedback_2d':
-            recipe_id = 'feedback_2d'
+        if req.recipe_id in ('dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'):
+            recipe_id = req.recipe_id
+        else:
+            recipe_id = str(payload.get('recipe_id') or self._select_recipe_from_prompt(req.prompt))
+            if recipe_id not in ('dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'):
+                recipe_id = self._select_recipe_from_prompt(req.prompt)
 
         rp = payload.get('parameters') or payload.get('recipe_params') or payload.get('td_params') or {}
         if not isinstance(rp, dict):
             rp = {}
 
-        template = 'particle' if recipe_id == 'particle_field' else 'feedback'
+        template_map = {
+            'dreamy_particle_field': 'particle',
+            'glitch_feedback_field': 'feedback',
+            'soft_3d_orb': '3d',
+            'feedback_2d': 'feedback',
+            'particle_field': 'particle',
+        }
+        template = template_map.get(recipe_id, 'particle')
 
         heuristic = self._heuristic_recipe_params(req.prompt, recipe_id)
         heuristic.update(self._palette_from_prompt(req.prompt, recipe_id))
@@ -1535,12 +1542,22 @@ class LLMRouter:
         return data['choices'][0]['message']['content'].strip()
 
     def _fallback_output(self, req: GenerateRequest, reason: str) -> tuple[str, OrchestratorOutput]:
-        recipe_id = self._recipe_override_from_prompt(req.prompt)
+        if req.recipe_id in ('dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'):
+            recipe_id = req.recipe_id
+        else:
+            recipe_id = self._select_recipe_from_prompt(req.prompt)
+            
         recipe_params = self._heuristic_recipe_params(req.prompt, recipe_id)
         recipe_params.update(self._palette_from_prompt(req.prompt, recipe_id))
-        if recipe_id not in {'feedback_2d', 'particle_field'}:
-            recipe_id = 'feedback_2d'
-        template = 'particle' if recipe_id == 'particle_field' else 'feedback'
+        
+        template_map = {
+            'dreamy_particle_field': 'particle',
+            'glitch_feedback_field': 'feedback',
+            'soft_3d_orb': '3d',
+            'feedback_2d': 'feedback',
+            'particle_field': 'particle',
+        }
+        template = template_map.get(recipe_id, 'particle')
         color_1 = str(recipe_params.get('color_1') or '#ffffff')
         color_2 = str(recipe_params.get('color_2') or '#9fb7ff')
         color_3 = str(recipe_params.get('color_3') or '#05070a')

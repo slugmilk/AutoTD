@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 import tempfile
 from pathlib import Path
@@ -704,6 +704,84 @@ def _load_image_top(scope, image_path, x=-240, y=130):
     return movie, info
 
 
+def _build_image_source_showcase(scope, p):
+    nodes = []
+    image_top, image_info = _load_image_top(scope, p.get('image_asset_path', ''), -260, 120)
+    if not image_top or not image_info.get('loaded'):
+        return None, nodes, image_info
+    nodes.append(('source_image', 'moviefileinTOP'))
+
+    black = _make_top(scope, 'constantTOP', 'image_black_background', -260, -80)
+    _set_resolution(black)
+    _set_rgb_candidates(black, ('color', 'colorrgba', 'bgcolor'), (0.0, 0.0, 0.0), 1.0)
+    nodes.append(('image_black_background', 'constantTOP'))
+
+    image_level = _make_top(scope, 'levelTOP', 'image_source_level', -20, 120)
+    _connect(image_top, image_level)
+    _set_par_safe(image_level, 'brightness', 0.92 + p['glow_intensity'] * 0.18)
+    _set_par_safe(image_level, 'contrast', 1.02 + p['glow_intensity'] * 0.24)
+    nodes.append(('image_source_level', 'levelTOP'))
+
+    drift = _make_top(scope, 'transformTOP', 'image_slow_drift', 220, 120)
+    _connect(image_level, drift)
+    _set_par_safe(drift, 'scale', 1.002 + p['speed'] * 0.006)
+    _set_par_safe(drift, 'rotate', (p['speed'] - 0.5) * 0.22)
+    nodes.append(('image_slow_drift', 'transformTOP'))
+
+    feedback = _make_top(scope, 'feedbackTOP', 'image_soft_feedback', 460, 120)
+    _connect(drift, feedback)
+    _set_par_safe(feedback, 'opacity', min(0.92, max(0.74, p['feedback_opacity'] * 0.84)))
+    nodes.append(('image_soft_feedback', 'feedbackTOP'))
+
+    glow = _make_top(scope, 'blurTOP', 'image_soft_glow', 700, 120)
+    _connect(feedback, glow)
+    _set_par_safe(glow, 'sizex', 1 + p['blur_amount'] * 7)
+    _set_par_safe(glow, 'sizey', 1 + p['blur_amount'] * 7)
+    nodes.append(('image_soft_glow', 'blurTOP'))
+
+    glow_level = _make_top(scope, 'levelTOP', 'image_glow_level', 940, 120)
+    _connect(glow, glow_level)
+    _set_par_safe(glow_level, 'brightness', 0.35 + p['glow_intensity'] * 0.28)
+    _set_par_safe(glow_level, 'contrast', 0.82)
+    nodes.append(('image_glow_level', 'levelTOP'))
+
+    base_mix = _make_top(scope, 'compositeTOP', 'image_base_composite', 1180, 80)
+    _connect(black, base_mix, 0)
+    _connect(image_level, base_mix, 1)
+    _set_par_safe(base_mix, 'operand', 'over')
+    nodes.append(('image_base_composite', 'compositeTOP'))
+
+    final_mix = _make_top(scope, 'compositeTOP', 'image_final_composite', 1420, 80)
+    _connect(base_mix, final_mix, 0)
+    _connect(glow_level, final_mix, 1)
+    _set_par_safe(final_mix, 'operand', 'screen')
+    nodes.append(('image_final_composite', 'compositeTOP'))
+
+    out = _make_top(scope, 'nullTOP', 'generated_out', 1660, 80)
+    _connect(final_mix, out)
+    nodes.append(('generated_out', 'nullTOP'))
+
+    image_info.update({
+        'image_first_pipeline': True,
+        'image_pipeline': 'moviefileinTOP_level_feedback_glow_composite',
+        'image_usage': p.get('image_usage', 'background_composite'),
+        'particle_engine': 'disabled_for_image_source',
+        'particle_background': '',
+        'pop_nodes_created': [],
+        'particle_count': 0,
+        'trail_enabled': False,
+        'fallback_used': False,
+        'fallback_reason': '',
+    })
+    try:
+        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 1900, 80)
+        _connect(out, recipe_out)
+        nodes.append(('recipe_out', 'outTOP'))
+        return recipe_out, nodes, image_info
+    except Exception:
+        return out, nodes, image_info
+
+
 def _recipe_params_from_payload(params):
     image_path = params.get('image_asset_path') or params.get('asset_image_path') or ''
     color_palette = params.get('color_palette') or params.get('color_mode') or 'monochrome'
@@ -1024,8 +1102,16 @@ def _execute_recipe(recipe_id, params):
     print(f'[AutoTD] Recipe params: {json.dumps(recipe_params, indent=2)}')
     
     try:
-        builder = RECIPE_BUILDERS[recipe_id]
-        res = builder(scope, recipe_params)
+        if recipe_params.get('image_asset_path'):
+            res = _build_image_source_showcase(scope, recipe_params)
+            if res[0]:
+                recipe_id = 'image_source_showcase'
+            else:
+                builder = RECIPE_BUILDERS[recipe_id]
+                res = builder(scope, recipe_params)
+        else:
+            builder = RECIPE_BUILDERS[recipe_id]
+            res = builder(scope, recipe_params)
         if len(res) == 3:
             output_node, nodes_created, image_info = res
         else:
@@ -1073,10 +1159,12 @@ def _execute_recipe(recipe_id, params):
         'out1': out1_path,
         'image_asset_path': image_info.get('path', recipe_params.get('asset_image_path', '')),
         'image_usage': recipe_params.get('image_usage', 'background' if recipe_params.get('asset_image_path') else 'none'),
-        'image_loaded_in_td': bool(image_info.get('loaded') or recipe_params.get('asset_image_path')),
-        'image_width': image_info.get('width', 1920 if recipe_params.get('asset_image_path') else 0),
-        'image_height': image_info.get('height', 1080 if recipe_params.get('asset_image_path') else 0),
+        'image_loaded_in_td': bool(image_info.get('loaded')),
+        'image_width': image_info.get('width', 0),
+        'image_height': image_info.get('height', 0),
         'image_error': image_info.get('error', ''),
+        'image_first_pipeline': bool(image_info.get('image_first_pipeline')),
+        'image_pipeline': image_info.get('image_pipeline', ''),
         'td_model_loaded': td_model_loaded,
         'asset_3d_loaded_in_td': asset_3d_loaded_in_td,
         'point_count': point_count,
@@ -1117,6 +1205,8 @@ def _execute_recipe(recipe_id, params):
         'image_width': _last_debug['image_width'],
         'image_height': _last_debug['image_height'],
         'image_error': _last_debug['image_error'],
+        'image_first_pipeline': _last_debug['image_first_pipeline'],
+        'image_pipeline': _last_debug['image_pipeline'],
         'td_model_loaded': td_model_loaded,
         'asset_3d_loaded_in_td': asset_3d_loaded_in_td,
         'point_count': point_count,

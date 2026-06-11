@@ -223,6 +223,10 @@ def _normalize_td_telemetry(params: TDParameters, td_applied: dict) -> dict:
         'failed_nodes': failed_nodes,
         'cook_errors': cook_errors,
         'image_usage': raw.get('image_usage') or plan.get('image_usage') or 'none',
+        'image_first_pipeline': bool(raw.get('image_first_pipeline') or plan.get('image_first_pipeline')),
+        'image_pipeline': raw.get('image_pipeline') or plan.get('image_pipeline') or '',
+        'particle_engine': raw.get('particle_engine') or plan.get('particle_engine') or '',
+        'particle_background': raw.get('particle_background') or plan.get('particle_background') or '',
     }
     return telemetry
 

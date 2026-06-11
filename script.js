@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initHamburger();
   initCharCounter();
   initDropdowns();
+  initRecipeSelector();
   initParticleCanvas();
   initPreviewCanvas();
   initScrollAnimations();
@@ -158,8 +159,12 @@ async function handleGenerate() {
   if (state.generating) return;
   state.generating = true;
 
+  const recipeSelect = document.getElementById('recipe-select');
+  const recipeId = recipeSelect ? recipeSelect.value : 'auto';
+
   const payload = {
     prompt: promptVal,
+    recipe_id: recipeId,
     source_options: {
       generate_image: Boolean(sourceGenerateImage?.checked),
       generate_3d: Boolean(sourceGenerate3d?.checked),
@@ -1029,6 +1034,20 @@ function initDropdowns() {
   );
 }
 
+function initRecipeSelector() {
+  const cards = document.querySelectorAll('.recipe-card');
+  const hiddenInput = document.getElementById('recipe-select');
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      cards.forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      if (hiddenInput) {
+        hiddenInput.value = card.dataset.value;
+      }
+    });
+  });
+}
+
 // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
 //  Scroll Animations
 // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧
@@ -1184,8 +1203,8 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
       <strong>Ollama Orchestration</strong>
       <span>active - recipe_id and parameters only</span>
       <div class="source-facts">
-        <span>recipes: feedback_2d / particle_field</span>
-        <span>3D/Trellis: disabled</span>
+        <span>recipes: dreamy_particle_field / glitch_feedback_field / soft_3d_orb</span>
+        <span>3D/Trellis: experimental</span>
       </div>
     </div>
   `;
@@ -1201,7 +1220,7 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
   td.innerHTML = `
     <div class="source-meta">
       <strong>TouchDesigner MCP Control</strong>
-      <span>active - verified 2D recipe / POP particle control</span>
+      <span>active - verified recipe / TouchDesigner MCP control</span>
       <div class="source-facts">
         <span>preview: ${tdApplied.final_output_top || tdApplied.out1 || 'out1'}</span>
         <span>${particleEngine}</span>
