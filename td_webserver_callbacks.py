@@ -28,6 +28,37 @@ def _save_preview_png():
     return preview_path
 
 
+def _safe_export_name(name='autotd_export'):
+    safe = ''.join(ch if ch.isalnum() or ch in ('-', '_') else '_' for ch in str(name or 'autotd_export'))
+    safe = safe.strip('_') or 'autotd_export'
+    return safe[:80]
+
+
+def _export_generated_tox(export_dir='', name='autotd_export'):
+    target = op('/project1/autotd_generated') or op('/project1')
+    if not target:
+        raise RuntimeError('No TouchDesigner component available for TOX export')
+    export_root = Path(export_dir or os.path.join(tempfile.gettempdir(), 'autotd_exports'))
+    export_root.mkdir(parents=True, exist_ok=True)
+    export_path = export_root / f'{_safe_export_name(name)}.tox'
+    if export_path.exists():
+        try:
+            export_path.unlink()
+        except Exception:
+            pass
+    saved = target.save(str(export_path))
+    final_path = Path(saved) if saved else export_path
+    if not final_path.exists() or final_path.stat().st_size <= 0:
+        raise RuntimeError(f'TOX export failed: {final_path}')
+    return {
+        'status': 'ok',
+        'path': final_path.as_posix(),
+        'filename': final_path.name,
+        'bytes': final_path.stat().st_size,
+        'source': target.path,
+    }
+
+
 # ── Last received plan debug storage ──
 _last_debug = {}
 
@@ -531,7 +562,7 @@ def _execute_recipe(recipe_id, params):
     
     builder = RECIPE_BUILDERS.get(recipe_id)
     if not builder:
-        recipe_id = 'dreamy_particle_field'
+        recipe_id = 'feedback_2d'
         builder = RECIPE_BUILDERS[recipe_id]
     
     scope = _reset_generated_scope('/project1/autotd_generated')
@@ -679,6 +710,15 @@ def _set_first_par(node, names, value):
     return False
 
 
+def _set_expr_safe(node, name, expression):
+    try:
+        par = getattr(node.par, name)
+        par.expr = expression
+        return True
+    except Exception:
+        return False
+
+
 def _set_resolution(top, w=960, h=540):
     _set_par_safe(top, 'resolutionw', w)
     _set_par_safe(top, 'resolutionh', h)
@@ -711,59 +751,82 @@ def _build_image_source_showcase(scope, p):
         return None, nodes, image_info
     nodes.append(('source_image', 'moviefileinTOP'))
 
-    black = _make_top(scope, 'constantTOP', 'image_black_background', -260, -80)
-    _set_resolution(black)
-    _set_rgb_candidates(black, ('color', 'colorrgba', 'bgcolor'), (0.0, 0.0, 0.0), 1.0)
-    nodes.append(('image_black_background', 'constantTOP'))
-
     image_level = _make_top(scope, 'levelTOP', 'image_source_level', -20, 120)
     _connect(image_top, image_level)
-    _set_par_safe(image_level, 'brightness', 0.92 + p['glow_intensity'] * 0.18)
-    _set_par_safe(image_level, 'contrast', 1.02 + p['glow_intensity'] * 0.24)
+    _set_par_safe(image_level, 'brightness', 0.62 + p['glow_intensity'] * 0.18)
+    _set_par_safe(image_level, 'contrast', 1.35 + p['glow_intensity'] * 0.5)
     nodes.append(('image_source_level', 'levelTOP'))
+
+    edge = _make_top(scope, 'edgeTOP', 'image_displace_map', 220, -80)
+    _connect(image_level, edge)
+    nodes.append(('image_displace_map', 'edgeTOP'))
 
     drift = _make_top(scope, 'transformTOP', 'image_slow_drift', 220, 120)
     _connect(image_level, drift)
-    _set_par_safe(drift, 'scale', 1.002 + p['speed'] * 0.006)
-    _set_par_safe(drift, 'rotate', (p['speed'] - 0.5) * 0.22)
+    _set_par_safe(drift, 'scale', 1.018 + p['speed'] * 0.022)
+    _set_par_safe(drift, 'rotate', (p['speed'] - 0.5) * 1.8)
     nodes.append(('image_slow_drift', 'transformTOP'))
 
     feedback = _make_top(scope, 'feedbackTOP', 'image_soft_feedback', 460, 120)
     _connect(drift, feedback)
-    _set_par_safe(feedback, 'opacity', min(0.92, max(0.74, p['feedback_opacity'] * 0.84)))
+    _set_par_safe(feedback, 'opacity', min(0.995, max(0.91, p['feedback_opacity'] + 0.12)))
     nodes.append(('image_soft_feedback', 'feedbackTOP'))
 
-    glow = _make_top(scope, 'blurTOP', 'image_soft_glow', 700, 120)
-    _connect(feedback, glow)
-    _set_par_safe(glow, 'sizex', 1 + p['blur_amount'] * 7)
-    _set_par_safe(glow, 'sizey', 1 + p['blur_amount'] * 7)
+    displace = _make_top(scope, 'displaceTOP', 'image_flow_displace', 700, 120)
+    _connect(feedback, displace, 0)
+    _connect(edge, displace, 1)
+    _set_par_safe(displace, 'weight', 0.025 + p['displace_weight'] * 0.09)
+    nodes.append(('image_flow_displace', 'displaceTOP'))
+
+    echo = _make_top(scope, 'feedbackTOP', 'image_echo_feedback', 940, 120)
+    _connect(displace, echo)
+    _set_par_safe(echo, 'opacity', min(0.985, max(0.88, p['feedback_opacity'] + 0.04)))
+    nodes.append(('image_echo_feedback', 'feedbackTOP'))
+
+    echo_drift = _make_top(scope, 'transformTOP', 'image_echo_drift', 1180, 120)
+    _connect(echo, echo_drift)
+    _set_par_safe(echo_drift, 'tx', (p['speed'] - 0.5) * 0.018)
+    _set_par_safe(echo_drift, 'ty', 0.006 + p['speed'] * 0.014)
+    _set_par_safe(echo_drift, 'rotate', (p['speed'] - 0.5) * 2.6)
+    _set_par_safe(echo_drift, 'scale', 1.006 + p['speed'] * 0.018)
+    nodes.append(('image_echo_drift', 'transformTOP'))
+
+    color_ramp = _make_top(scope, 'rampTOP', 'image_color_filter', 1180, -120)
+    _set_resolution(color_ramp, image_info.get('width', 1024), image_info.get('height', 1024))
+    _apply_ramp_palette(color_ramp, p, 'feedback')
+    nodes.append(('image_color_filter', 'rampTOP'))
+
+    color_mix = _make_top(scope, 'compositeTOP', 'image_color_mix', 1420, 120)
+    _connect(echo_drift, color_mix, 0)
+    _connect(color_ramp, color_mix, 1)
+    _set_par_safe(color_mix, 'operand', 'multiply')
+    nodes.append(('image_color_mix', 'compositeTOP'))
+
+    glow = _make_top(scope, 'blurTOP', 'image_soft_glow', 1660, 120)
+    _connect(color_mix, glow)
+    _set_par_safe(glow, 'sizex', 4 + p['blur_amount'] * 18)
+    _set_par_safe(glow, 'sizey', 4 + p['blur_amount'] * 18)
     nodes.append(('image_soft_glow', 'blurTOP'))
 
-    glow_level = _make_top(scope, 'levelTOP', 'image_glow_level', 940, 120)
+    glow_level = _make_top(scope, 'levelTOP', 'image_glow_level', 1900, 120)
     _connect(glow, glow_level)
-    _set_par_safe(glow_level, 'brightness', 0.35 + p['glow_intensity'] * 0.28)
-    _set_par_safe(glow_level, 'contrast', 0.82)
+    _set_par_safe(glow_level, 'brightness', 0.92 + p['glow_intensity'] * 0.62)
+    _set_par_safe(glow_level, 'contrast', 1.16 + p['glow_intensity'] * 0.42)
     nodes.append(('image_glow_level', 'levelTOP'))
 
-    base_mix = _make_top(scope, 'compositeTOP', 'image_base_composite', 1180, 80)
-    _connect(black, base_mix, 0)
-    _connect(image_level, base_mix, 1)
-    _set_par_safe(base_mix, 'operand', 'over')
-    nodes.append(('image_base_composite', 'compositeTOP'))
+    final_grade = _make_top(scope, 'levelTOP', 'image_final_grade', 2140, 120)
+    _connect(glow_level, final_grade)
+    _set_par_safe(final_grade, 'brightness', 0.92 + p['glow_intensity'] * 0.22)
+    _set_par_safe(final_grade, 'contrast', 1.12 + p['glow_intensity'] * 0.28)
+    nodes.append(('image_final_grade', 'levelTOP'))
 
-    final_mix = _make_top(scope, 'compositeTOP', 'image_final_composite', 1420, 80)
-    _connect(base_mix, final_mix, 0)
-    _connect(glow_level, final_mix, 1)
-    _set_par_safe(final_mix, 'operand', 'screen')
-    nodes.append(('image_final_composite', 'compositeTOP'))
-
-    out = _make_top(scope, 'nullTOP', 'generated_out', 1660, 80)
-    _connect(final_mix, out)
+    out = _make_top(scope, 'nullTOP', 'generated_out', 2380, 120)
+    _connect(final_grade, out)
     nodes.append(('generated_out', 'nullTOP'))
 
     image_info.update({
         'image_first_pipeline': True,
-        'image_pipeline': 'moviefileinTOP_level_feedback_glow_composite',
+        'image_pipeline': 'moviefileinTOP_level_edge_displace_feedback_color_glow',
         'image_usage': p.get('image_usage', 'background_composite'),
         'particle_engine': 'disabled_for_image_source',
         'particle_background': '',
@@ -774,7 +837,7 @@ def _build_image_source_showcase(scope, p):
         'fallback_reason': '',
     })
     try:
-        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 1900, 80)
+        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 2620, 120)
         _connect(out, recipe_out)
         nodes.append(('recipe_out', 'outTOP'))
         return recipe_out, nodes, image_info
@@ -825,84 +888,114 @@ def _recipe_params_from_payload(params):
 
 def _build_feedback_2d(scope, p):
     nodes = []
-    image_top, image_info = _load_image_top(scope, p.get('image_asset_path', ''), -240, 170)
-    if image_top:
-        nodes.append(('source_image', 'moviefileinTOP'))
+    image_info = {'requested': False, 'loaded': False, 'path': '', 'width': 0, 'height': 0, 'error': ''}
 
-    noise = _make_top(scope, 'noiseTOP', 'base_noise', -240, 0)
-    _set_resolution(noise)
-    _set_noise_par(noise, 'period', 1.8 - p['speed'] * 0.6)
-    _set_noise_par(noise, 'harmonics', 1 + int(p['noise_strength'] * 2))
-    _set_noise_par(noise, 'amp', 0.08 + p['noise_strength'] * 0.16)
-    nodes.append(('base_noise', 'noiseTOP'))
+    notes = _make_op(scope, 'textDAT', 'recipe_notes', -520, 240)
+    try:
+        notes.text = 'AutoTD procedural-only feedback_2d: layered noise seeds, dual feedback loops, displacement, glow, final grade.'
+    except Exception:
+        pass
+    nodes.append(('recipe_notes', 'textDAT'))
 
-    ramp = _make_top(scope, 'rampTOP', 'color_ramp', -20, 0)
-    _set_resolution(ramp)
-    _apply_ramp_palette(ramp, p, 'feedback')
-    _connect(noise, ramp)
-    nodes.append(('color_ramp', 'rampTOP'))
+    lfo = _make_op(scope, 'lfoCHOP', 'control_lfo', -520, 80)
+    _set_first_par(lfo, ('freq', 'frequency'), 0.03 + p['speed'] * 0.11)
+    nodes.append(('control_lfo', 'lfoCHOP'))
 
-    seed_mix = _make_top(scope, 'compositeTOP', 'seed_composite', 200, 0)
-    _connect(ramp, seed_mix, 0)
-    if image_top:
-        _connect(image_top, seed_mix, 1)
-    _set_par_safe(seed_mix, 'operand', 'over')
+    base_a = _make_top(scope, 'noiseTOP', 'base_noise_a', -300, 0)
+    _set_resolution(base_a)
+    _set_par_safe(base_a, 'seed', 17)
+    _set_noise_par(base_a, 'period', 1.5 - p['speed'] * 0.45)
+    _set_noise_par(base_a, 'harmonics', 3 + int(p['noise_strength'] * 5))
+    _set_noise_par(base_a, 'amp', 0.32 + p['noise_strength'] * 0.42)
+    nodes.append(('base_noise_a', 'noiseTOP'))
+
+    base_b = _make_top(scope, 'noiseTOP', 'base_noise_b', -300, -170)
+    _set_resolution(base_b)
+    _set_par_safe(base_b, 'seed', 131)
+    _set_noise_par(base_b, 'period', 0.62 + (1.0 - p['speed']) * 0.55)
+    _set_noise_par(base_b, 'harmonics', 2 + int(p['noise_strength'] * 4))
+    _set_noise_par(base_b, 'amp', 0.18 + p['displace_weight'] * 0.45)
+    nodes.append(('base_noise_b', 'noiseTOP'))
+
+    ramp_primary = _make_top(scope, 'rampTOP', 'color_ramp_primary', -80, 0)
+    _set_resolution(ramp_primary)
+    _apply_ramp_palette(ramp_primary, p, 'feedback')
+    nodes.append(('color_ramp_primary', 'rampTOP'))
+
+    seed_mix = _make_top(scope, 'compositeTOP', 'seed_composite', 140, 0)
+    _connect(base_a, seed_mix, 0)
+    _connect(ramp_primary, seed_mix, 1)
+    _set_par_safe(seed_mix, 'operand', 'multiply')
     nodes.append(('seed_composite', 'compositeTOP'))
 
-    feedback = _make_top(scope, 'feedbackTOP', 'feedback_loop', 420, 0)
-    _connect(seed_mix, feedback)
-    _set_par_safe(feedback, 'opacity', min(0.97, max(0.82, p['feedback_opacity'] + 0.04)))
-    nodes.append(('feedback_loop', 'feedbackTOP'))
+    loop_a = _make_top(scope, 'feedbackTOP', 'feedback_loop_a', 360, 0)
+    _connect(seed_mix, loop_a)
+    _set_par_safe(loop_a, 'opacity', min(0.985, max(0.84, p['feedback_opacity'] + 0.045)))
+    nodes.append(('feedback_loop_a', 'feedbackTOP'))
 
-    transform = _make_top(scope, 'transformTOP', 'feedback_transform', 640, 0)
-    _connect(feedback, transform)
-    _set_par_safe(transform, 'tx', (p['speed'] - 0.5) * 0.018)
-    _set_par_safe(transform, 'ty', (0.5 - p['speed']) * 0.014)
-    _set_par_safe(transform, 'rotate', p['speed'] * 1.15)
-    _set_par_safe(transform, 'scale', 1.002 + p['speed'] * 0.01)
-    nodes.append(('feedback_transform', 'transformTOP'))
+    transform_a = _make_top(scope, 'transformTOP', 'feedback_transform_a', 580, 0)
+    _connect(loop_a, transform_a)
+    _set_par_safe(transform_a, 'tx', (p['speed'] - 0.5) * 0.012)
+    _set_par_safe(transform_a, 'ty', (0.5 - p['speed']) * 0.009)
+    _set_par_safe(transform_a, 'rotate', p['speed'] * 0.72)
+    _set_par_safe(transform_a, 'scale', 1.004 + p['speed'] * 0.010)
+    nodes.append(('feedback_transform_a', 'transformTOP'))
 
-    displace = _make_top(scope, 'displaceTOP', 'flow_displace', 860, 0)
-    _connect(transform, displace, 0)
-    _connect(noise, displace, 1)
-    _set_par_safe(displace, 'weight', 0.006 + p['displace_weight'] * 0.055)
-    nodes.append(('flow_displace', 'displaceTOP'))
+    displace_a = _make_top(scope, 'displaceTOP', 'flow_displace_a', 800, 0)
+    _connect(transform_a, displace_a, 0)
+    _connect(base_b, displace_a, 1)
+    _set_par_safe(displace_a, 'weight', 0.012 + p['displace_weight'] * 0.085)
+    nodes.append(('flow_displace_a', 'displaceTOP'))
 
-    echo = _make_top(scope, 'feedbackTOP', 'feedback_echo', 1080, 0)
-    _connect(displace, echo)
-    _set_par_safe(echo, 'opacity', min(0.96, max(0.78, p['feedback_opacity'] * 0.92)))
-    nodes.append(('feedback_echo', 'feedbackTOP'))
+    loop_b = _make_top(scope, 'feedbackTOP', 'feedback_loop_b', 1020, 0)
+    _connect(displace_a, loop_b)
+    _set_par_safe(loop_b, 'opacity', min(0.965, max(0.80, p['feedback_opacity'] * 0.94)))
+    nodes.append(('feedback_loop_b', 'feedbackTOP'))
 
-    echo_mix = _make_top(scope, 'compositeTOP', 'echo_composite', 1300, 0)
-    _connect(echo, echo_mix, 0)
+    transform_b = _make_top(scope, 'transformTOP', 'feedback_transform_b', 1240, 0)
+    _connect(loop_b, transform_b)
+    _set_par_safe(transform_b, 'tx', (0.5 - p['speed']) * 0.007)
+    _set_par_safe(transform_b, 'ty', 0.003 + p['speed'] * 0.008)
+    _set_par_safe(transform_b, 'rotate', -0.38 - p['speed'] * 0.55)
+    _set_par_safe(transform_b, 'scale', 1.001 + p['displace_weight'] * 0.014)
+    nodes.append(('feedback_transform_b', 'transformTOP'))
+
+    echo_mix = _make_top(scope, 'compositeTOP', 'echo_composite', 1460, 0)
+    _connect(transform_b, echo_mix, 0)
     _connect(seed_mix, echo_mix, 1)
     _set_par_safe(echo_mix, 'operand', 'screen')
     nodes.append(('echo_composite', 'compositeTOP'))
 
-    blur = _make_top(scope, 'blurTOP', 'soft_blur', 1520, 0)
-    _connect(echo_mix, blur)
-    _set_par_safe(blur, 'sizex', 3 + p['blur_amount'] * 16)
-    _set_par_safe(blur, 'sizey', 3 + p['blur_amount'] * 16)
-    nodes.append(('soft_blur', 'blurTOP'))
+    mist_blur = _make_top(scope, 'blurTOP', 'mist_blur', 1680, 0)
+    _connect(echo_mix, mist_blur)
+    _set_par_safe(mist_blur, 'sizex', 4 + p['blur_amount'] * 18)
+    _set_par_safe(mist_blur, 'sizey', 4 + p['blur_amount'] * 18)
+    nodes.append(('mist_blur', 'blurTOP'))
 
-    level = _make_top(scope, 'levelTOP', 'tone_level', 1740, 0)
-    _connect(blur, level)
-    _set_par_safe(level, 'brightness', 0.62 + p['glow_intensity'] * 0.3)
-    _set_par_safe(level, 'contrast', 0.82 + p['glow_intensity'] * 0.22)
-    nodes.append(('tone_level', 'levelTOP'))
+    glow_blur = _make_top(scope, 'blurTOP', 'glow_blur', 1680, -160)
+    _connect(echo_mix, glow_blur)
+    _set_par_safe(glow_blur, 'sizex', 12 + p['glow_intensity'] * 32)
+    _set_par_safe(glow_blur, 'sizey', 12 + p['glow_intensity'] * 32)
+    nodes.append(('glow_blur', 'blurTOP'))
 
-    image_comp = _make_top(scope, 'compositeTOP', 'image_composite', 1960, 0)
-    _connect(level, image_comp, 0)
-    if image_top:
-        _connect(image_top, image_comp, 1)
-    _set_par_safe(image_comp, 'operand', 'screen')
-    nodes.append(('image_composite', 'compositeTOP'))
+    final_mix = _make_top(scope, 'compositeTOP', 'final_composite', 1900, 0)
+    _connect(mist_blur, final_mix, 0)
+    _connect(glow_blur, final_mix, 1)
+    _set_par_safe(final_mix, 'operand', 'screen')
+    nodes.append(('final_composite', 'compositeTOP'))
 
-    out = _make_top(scope, 'nullTOP', 'generated_out', 2180, 0)
-    _connect(image_comp, out)
+    level = _make_top(scope, 'levelTOP', 'color_filter_level', 2120, 0)
+    _connect(final_mix, level)
+    _set_par_safe(level, 'brightness', 0.68 + p['glow_intensity'] * 0.24)
+    _set_par_safe(level, 'contrast', 1.02 + p['glow_intensity'] * 0.34)
+    _set_par_safe(level, 'gamma', 0.88 + (1.0 - p['glow_intensity']) * 0.16)
+    nodes.append(('color_filter_level', 'levelTOP'))
+
+    out = _make_top(scope, 'nullTOP', 'generated_out', 2340, 0)
+    _connect(level, out)
     nodes.append(('generated_out', 'nullTOP'))
     try:
-        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 2400, 0)
+        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 2560, 0)
         _connect(out, recipe_out)
         nodes.append(('recipe_out', 'outTOP'))
         return recipe_out, nodes, image_info
@@ -913,165 +1006,133 @@ def _build_feedback_2d(scope, p):
 def _build_particle_field(scope, p):
     nodes = []
     particle_info = {
-        'particle_engine': 'pop',
+        'particle_engine': 'top_procedural',
         'particle_background': 'black',
         'pop_nodes_created': [],
         'particle_count': int(p.get('particle_count', 700) or 700),
-        'trail_enabled': False,
+        'trail_enabled': True,
         'fallback_used': False,
         'fallback_reason': '',
     }
-    image_top, image_info = _load_image_top(scope, p.get('image_asset_path', ''), -260, 170)
-    if image_top:
-        nodes.append(('source_image', 'moviefileinTOP'))
+    image_info = {'requested': False, 'loaded': False, 'path': '', 'width': 0, 'height': 0, 'error': ''}
 
     black = _make_top(scope, 'constantTOP', 'black_background', -300, -20)
     _set_resolution(black)
     _set_rgb_candidates(black, ('color', 'colorrgba', 'bgcolor'), (0.0, 0.0, 0.0), 1.0)
     nodes.append(('black_background', 'constantTOP'))
 
-    particle_source = None
+    notes = _make_op(scope, 'textDAT', 'recipe_notes', -300, 190)
     try:
-        geo = _make_op(scope, 'geometryCOMP', 'particle_geo', -80, 190)
-        cam = _make_op(scope, 'cameraCOMP', 'particle_cam', -80, -210)
-        light = _make_op(scope, 'lightCOMP', 'particle_light', 120, -210)
-        mat = _make_op(scope, 'constantMAT', 'particle_material', 120, 190)
-        nodes.extend([
-            ('particle_geo', 'geometryCOMP'),
-            ('particle_cam', 'cameraCOMP'),
-            ('particle_light', 'lightCOMP'),
-            ('particle_material', 'constantMAT'),
-        ])
+        notes.text = 'AutoTD procedural-only particle_field: thresholded sparkle seeds, dual feedback trails, glow blur, black composite.'
+    except Exception:
+        pass
+    nodes.append(('recipe_notes', 'textDAT'))
 
-        _set_rgb_candidates(mat, ('color', 'constant', 'emitcolor'), _hex_to_rgb(p.get('color_1'), (1.0, 0.92, 0.66)), 1.0)
-        _set_first_par(mat, ('emit', 'emitcolor'), 1.0)
-        _set_first_par(geo, ('material', 'mat'), mat.path)
+    lfo = _make_op(scope, 'lfoCHOP', 'particle_lfo', -80, 190)
+    _set_first_par(lfo, ('freq', 'frequency'), 0.04 + p['speed'] * 0.08)
+    nodes.append(('particle_lfo', 'lfoCHOP'))
 
-        volume = _make_op(geo, 'spherePOP', 'particle_volume', -420, 0)
-        source = _make_op(geo, 'sprinklePOP', 'source_particles', -200, 0)
-        drift = _make_op(geo, 'transformPOP', 'particle_motion', 20, 0)
-        trail = _make_op(geo, 'trailPOP', 'particle_trails', 240, 0)
-        particle_source = trail
+    seed = _make_top(scope, 'noiseTOP', 'particle_seed_noise', -80, -20)
+    _set_resolution(seed)
+    _set_par_safe(seed, 'seed', int(200 + particle_info['particle_count']) % 10000)
+    _set_noise_par(seed, 'period', 0.07 + (1.0 - p['speed']) * 0.18)
+    _set_noise_par(seed, 'harmonics', 6 + int(p['noise_strength'] * 4))
+    _set_noise_par(seed, 'rough', 0.72 + p['noise_strength'] * 0.2)
+    _set_noise_par(seed, 'amp', 0.42 + p['noise_strength'] * 0.22)
+    _set_noise_par(seed, 'mono', True)
+    nodes.append(('particle_seed_noise', 'noiseTOP'))
 
-        _connect(volume, source)
-        _connect(source, drift)
-        _connect(drift, trail)
-        for pop_node in (volume, source, drift, trail):
-            try:
-                pop_node.display = True
-                pop_node.render = True
-            except Exception:
-                pass
+    mask = _make_top(scope, 'thresholdTOP', 'particle_mask_threshold', 140, -20)
+    _connect(seed, mask)
+    threshold = 0.94 - min(0.08, particle_info['particle_count'] / 45000.0)
+    _set_par_safe(mask, 'threshold', threshold)
+    nodes.append(('particle_mask_threshold', 'thresholdTOP'))
 
-        _set_first_par(volume, ('radius', 'rad', 'sizex', 'scale'), 1.5 + p['spread'] * 2.0)
-        _set_first_par(source, ('numpoints', 'pointcount', 'points', 'count', 'numpts'), particle_info['particle_count'])
-        _set_first_par(source, ('seed', 'randomseed'), int(abs(hash(str(p.get('color_1', 'white')))) % 10000))
-        _set_first_par(drift, ('rx', 'rotx'), p['speed'] * 6.0)
-        _set_first_par(drift, ('ry', 'roty'), p['speed'] * 11.0)
-        _set_first_par(drift, ('rz', 'rotz'), p['speed'] * 4.0)
-        _set_first_par(drift, ('sx', 'scalex'), 1.0 + p['spread'] * 0.08)
-        _set_first_par(drift, ('sy', 'scaley'), 1.0 + p['spread'] * 0.08)
-        _set_first_par(drift, ('sz', 'scalez'), 1.0 + p['spread'] * 0.08)
-        _set_first_par(trail, ('length', 'trailength', 'trailengthframes', 'frames'), 8 + int(p['blur_amount'] * 34))
-
-        pop_pairs = [
-            ('particle_volume', 'spherePOP'),
-            ('source_particles', 'sprinklePOP'),
-            ('particle_motion', 'transformPOP'),
-            ('particle_trails', 'trailPOP'),
-        ]
-        nodes.extend(pop_pairs)
-        particle_info['pop_nodes_created'] = [name for name, _type in pop_pairs]
-        particle_info['trail_enabled'] = True
-
-        try:
-            cam.par.tz = 5.0 + p['spread'] * 2.2
-            cam.par.ty = 0.25
-            light.par.tz = 3.0
-            light.par.ty = 2.5
-        except Exception:
-            pass
-
-        pop_render = _make_top(scope, 'renderTOP', 'pop_render', 180, -20)
-        _set_resolution(pop_render)
-        _set_first_par(pop_render, ('camera', 'cam'), cam.path)
-        _set_first_par(pop_render, ('geometry', 'geo', 'geometries'), geo.path)
-        _set_first_par(pop_render, ('lights', 'light'), light.path)
-        nodes.append(('pop_render', 'renderTOP'))
-        particle_base = pop_render
-    except Exception as e:
-        particle_info['particle_engine'] = 'top_fallback'
-        particle_info['fallback_used'] = True
-        particle_info['fallback_reason'] = str(e)
-        print(f'[AutoTD] POP particle chain failed, using black particle fallback: {e}')
-
-        seed = _make_top(scope, 'noiseTOP', 'particle_point_seed', -80, -20)
-        _set_resolution(seed)
-        _set_noise_par(seed, 'period', 0.16 + (1.0 - p['speed']) * 0.42)
-        _set_noise_par(seed, 'harmonics', 1)
-        _set_noise_par(seed, 'amp', 0.08 + p['noise_strength'] * 0.08)
-        nodes.append(('particle_point_seed', 'noiseTOP'))
-
-        mask = _make_top(scope, 'thresholdTOP', 'particle_point_mask', 140, -20)
-        _connect(seed, mask)
-        _set_par_safe(mask, 'threshold', 0.78 - min(0.18, particle_info['particle_count'] / 18000.0))
-        nodes.append(('particle_point_mask', 'thresholdTOP'))
-        particle_base = mask
+    sharpen = _make_top(scope, 'levelTOP', 'particle_sharpen_level', 360, -20)
+    _connect(mask, sharpen)
+    _set_par_safe(sharpen, 'brightness', 0.95 + p['glow_intensity'] * 0.35)
+    _set_par_safe(sharpen, 'contrast', 1.8 + p['glow_intensity'] * 1.1)
+    _set_par_safe(sharpen, 'gamma', 0.62)
+    nodes.append(('particle_sharpen_level', 'levelTOP'))
 
     particle_level = _make_top(scope, 'levelTOP', 'particle_level', 400, -20)
-    _connect(particle_base, particle_level)
+    _connect(sharpen, particle_level)
     _set_par_safe(particle_level, 'brightness', 0.92 + p['glow_intensity'] * 0.55)
     _set_par_safe(particle_level, 'contrast', 1.25 + p['glow_intensity'] * 0.9)
     nodes.append(('particle_level', 'levelTOP'))
 
-    feedback = _make_top(scope, 'feedbackTOP', 'particle_feedback', 620, -20)
-    _connect(particle_level, feedback)
-    _set_par_safe(feedback, 'opacity', min(0.96, max(0.78, p['feedback_opacity'] + 0.08)))
-    nodes.append(('particle_feedback', 'feedbackTOP'))
+    color_wash = _make_top(scope, 'constantTOP', 'particle_color_wash', 400, -170)
+    _set_resolution(color_wash)
+    _set_rgb_candidates(color_wash, ('color', 'colorrgba', 'bgcolor'), _hex_to_rgb(p.get('color_1'), (1.0, 0.94, 0.65)), 1.0)
+    nodes.append(('particle_color_wash', 'constantTOP'))
 
-    drift = _make_top(scope, 'transformTOP', 'particle_drift', 840, -20)
+    colorize = _make_top(scope, 'compositeTOP', 'particle_colorize', 560, -20)
+    _connect(particle_level, colorize, 0)
+    _connect(color_wash, colorize, 1)
+    _set_par_safe(colorize, 'operand', 'multiply')
+    nodes.append(('particle_colorize', 'compositeTOP'))
+
+    feedback = _make_top(scope, 'feedbackTOP', 'particle_feedback_a', 620, -20)
+    _connect(colorize, feedback)
+    _set_par_safe(feedback, 'opacity', min(0.975, max(0.80, p['feedback_opacity'] + 0.06)))
+    nodes.append(('particle_feedback_a', 'feedbackTOP'))
+
+    drift = _make_top(scope, 'transformTOP', 'particle_drift_transform', 840, -20)
     _connect(feedback, drift)
     _set_par_safe(drift, 'tx', (p['speed'] - 0.5) * 0.006)
     _set_par_safe(drift, 'ty', 0.002 + p['speed'] * 0.006)
     _set_par_safe(drift, 'rotate', p['speed'] * 0.28)
     _set_par_safe(drift, 'scale', 1.001 + p['spread'] * 0.004)
-    nodes.append(('particle_drift', 'transformTOP'))
+    nodes.append(('particle_drift_transform', 'transformTOP'))
 
-    echo = _make_top(scope, 'feedbackTOP', 'echo_feedback', 1060, -20)
+    echo = _make_top(scope, 'feedbackTOP', 'particle_feedback_b', 1060, -20)
     _connect(drift, echo)
     _set_par_safe(echo, 'opacity', min(0.94, max(0.72, p['feedback_opacity'] * 0.88)))
-    nodes.append(('echo_feedback', 'feedbackTOP'))
+    nodes.append(('particle_feedback_b', 'feedbackTOP'))
 
-    glow = _make_top(scope, 'blurTOP', 'particle_glow', 1280, -20)
-    _connect(echo, glow)
-    _set_par_safe(glow, 'sizex', 2 + p['blur_amount'] * 14)
-    _set_par_safe(glow, 'sizey', 2 + p['blur_amount'] * 14)
-    nodes.append(('particle_glow', 'blurTOP'))
+    trail_small = _make_top(scope, 'blurTOP', 'trail_blur_small', 1280, -20)
+    _connect(echo, trail_small)
+    _set_par_safe(trail_small, 'sizex', 1.5 + p['blur_amount'] * 8)
+    _set_par_safe(trail_small, 'sizey', 1.5 + p['blur_amount'] * 8)
+    nodes.append(('trail_blur_small', 'blurTOP'))
 
-    black_mix = _make_top(scope, 'compositeTOP', 'black_particle_composite', 1500, -20)
+    trail_wide = _make_top(scope, 'blurTOP', 'trail_blur_wide', 1280, -170)
+    _connect(echo, trail_wide)
+    _set_par_safe(trail_wide, 'sizex', 8 + p['glow_intensity'] * 28)
+    _set_par_safe(trail_wide, 'sizey', 8 + p['glow_intensity'] * 28)
+    nodes.append(('trail_blur_wide', 'blurTOP'))
+
+    sparkle_mix = _make_top(scope, 'compositeTOP', 'sparkle_composite', 1500, -20)
+    _connect(trail_small, sparkle_mix, 0)
+    _connect(colorize, sparkle_mix, 1)
+    _set_par_safe(sparkle_mix, 'operand', 'screen')
+    nodes.append(('sparkle_composite', 'compositeTOP'))
+
+    tone = _make_top(scope, 'levelTOP', 'particle_color_level', 1720, -20)
+    _connect(sparkle_mix, tone)
+    _set_par_safe(tone, 'brightness', 0.82 + p['glow_intensity'] * 0.34)
+    _set_par_safe(tone, 'contrast', 1.2 + p['glow_intensity'] * 0.42)
+    _set_par_safe(tone, 'gamma', 0.72)
+    nodes.append(('particle_color_level', 'levelTOP'))
+
+    black_mix = _make_top(scope, 'compositeTOP', 'black_screen_composite', 1940, -20)
     _connect(black, black_mix, 0)
-    _connect(glow, black_mix, 1)
+    _connect(tone, black_mix, 1)
     _set_par_safe(black_mix, 'operand', 'screen')
-    nodes.append(('black_particle_composite', 'compositeTOP'))
+    nodes.append(('black_screen_composite', 'compositeTOP'))
 
-    composite = _make_top(scope, 'compositeTOP', 'particle_composite', 1720, -20)
-    _connect(black_mix, composite, 0)
-    if image_top:
-        image_fog = _make_top(scope, 'levelTOP', 'image_fog_hint', 1500, 170)
-        _connect(image_top, image_fog)
-        _set_par_safe(image_fog, 'brightness', 0.08)
-        _set_par_safe(image_fog, 'opacity', 0.10)
-        nodes.append(('image_fog_hint', 'levelTOP'))
-        _connect(image_fog, composite, 1)
-    _set_par_safe(composite, 'operand', 'screen')
-    nodes.append(('particle_composite', 'compositeTOP'))
+    glow_mix = _make_top(scope, 'compositeTOP', 'wide_glow_composite', 2160, -20)
+    _connect(black_mix, glow_mix, 0)
+    _connect(trail_wide, glow_mix, 1)
+    _set_par_safe(glow_mix, 'operand', 'screen')
+    nodes.append(('wide_glow_composite', 'compositeTOP'))
 
-    out = _make_top(scope, 'nullTOP', 'generated_out', 1940, -20)
-    _connect(composite, out)
+    out = _make_top(scope, 'nullTOP', 'generated_out', 2380, -20)
+    _connect(glow_mix, out)
     nodes.append(('generated_out', 'nullTOP'))
     image_info.update(particle_info)
     try:
-        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 2160, -20)
+        recipe_out = _make_top(scope, 'outTOP', 'recipe_out', 2600, -20)
         _connect(out, recipe_out)
         nodes.append(('recipe_out', 'outTOP'))
         return recipe_out, nodes, image_info
@@ -1093,7 +1154,7 @@ def _execute_recipe(recipe_id, params):
     
     # Standardize recipe_id
     if recipe_id not in RECIPE_BUILDERS:
-        recipe_id = 'dreamy_particle_field'
+        recipe_id = 'feedback_2d'
         
     recipe_params = _recipe_params_from_payload(params)
     scope = _reset_generated_scope('/project1/autotd_generated')
@@ -1277,6 +1338,23 @@ def onHTTPRequest(*args):
         response['statusReason'] = 'OK'
         _json_headers(response)
         response['data'] = json.dumps(_last_debug, default=str)
+        return response
+
+    if uri in ('/export/tox', '/export_tox') and method == 'POST':
+        response['statusCode'] = 200
+        response['statusReason'] = 'OK'
+        _json_headers(response)
+        try:
+            body = request.get('data', '{}')
+            if isinstance(body, bytes):
+                body = body.decode('utf-8')
+            params = json.loads(body) if isinstance(body, str) else (body if isinstance(body, dict) else {})
+            result = _export_generated_tox(params.get('export_dir', ''), params.get('name', 'autotd_export'))
+            response['data'] = json.dumps(result)
+        except Exception as e:
+            response['statusCode'] = 500
+            response['statusReason'] = 'Internal Server Error'
+            response['data'] = json.dumps({'status': 'error', 'error': str(e)})
         return response
 
     if uri == '/generate' and method == 'POST':

@@ -75,17 +75,13 @@
               <span class="recipe-icon">✨</span>
               <span class="recipe-name">Auto (AI)</span>
             </button>
-            <button type="button" class="recipe-card" data-value="dreamy_particle_field" title="Dreamy Particle Field">
+            <button type="button" class="recipe-card" data-value="feedback_2d" title="Feedback 2D">
               <span class="recipe-icon">🌸</span>
-              <span class="recipe-name">Dreamy</span>
+              <span class="recipe-name">Feedback 2D</span>
             </button>
-            <button type="button" class="recipe-card" data-value="glitch_feedback_field" title="Glitch Feedback Field">
+            <button type="button" class="recipe-card" data-value="particle_field" title="Particle Field">
               <span class="recipe-icon">⚡</span>
-              <span class="recipe-name">Glitch</span>
-            </button>
-            <button type="button" class="recipe-card" data-value="soft_3d_orb" title="Soft 3D Orb">
-              <span class="recipe-icon">🔮</span>
-              <span class="recipe-name">Soft 3D</span>
+              <span class="recipe-name">Particle</span>
             </button>
           </div>
           <input type="hidden" id="recipe-select" value="auto" />
@@ -95,18 +91,18 @@
           <div class="source-status-row">
             <span class="source-badge active">● Procedural TouchDesigner Recipe: active</span>
           </div>
-          <label class="source-check source-ready" title="Optional OpenAI image source generation">
-            <input type="checkbox" id="source-generate-image" />
+          <label class="source-check experimental" title="Disabled while AutoTD is running procedural-only TouchDesigner generation">
+            <input type="checkbox" id="source-generate-image" disabled />
             <span>
               <strong>External Image Source</strong>
-              <em>OpenAI Images · ready</em>
+              <em>disabled · procedural-only</em>
             </span>
           </label>
-          <label class="source-check experimental" title="Experimental – not available in this MVP demo">
+          <label class="source-check experimental" title="Disabled while AutoTD is running procedural-only TouchDesigner generation">
             <input type="checkbox" id="source-generate-3d" disabled />
             <span>
               <strong>External 3D Source</strong>
-              <em>Trellis · experimental</em>
+              <em>disabled · procedural-only</em>
             </span>
           </label>
         </div>

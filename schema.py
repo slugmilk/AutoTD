@@ -4,14 +4,14 @@ from pydantic import BaseModel, Field
 
 
 class SourceOptions(BaseModel):
-    generate_image: bool = Field(False, description='Force OpenAI image source generation')
-    generate_3d: bool = Field(False, description='Disabled in this MVP')
+    generate_image: bool = Field(False, description='Disabled in procedural-only mode')
+    generate_3d: bool = Field(False, description='Disabled in procedural-only mode')
 
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., description='User text prompt')
     source: str = Field('', description='Optional path or URL of a source image/3D asset')
-    recipe_id: str = Field('auto', description='Forced recipe ID option (auto, dreamy_particle_field, glitch_feedback_field, soft_3d_orb)')
+    recipe_id: str = Field('auto', description='Forced recipe ID option (auto, feedback_2d, particle_field)')
     source_options: SourceOptions = Field(default_factory=SourceOptions)
     # Legacy fields kept for backward-compat; all are now inferred from the prompt by the LLM
     style: str = 'Ethereal'
@@ -27,7 +27,7 @@ class TDParameters(BaseModel):
     concept_summary: str = ''
     visual_mood: str = ''
     use_comfyui_image: bool = False
-    image_usage: Literal['background_composite', 'fog_overlay', 'particle_sprite'] = 'background_composite'
+    image_usage: Literal['none', 'background_composite', 'fog_overlay', 'particle_sprite'] = 'none'
     style: str = 'ethereal'
     motion: str = 'flowing'
     color_mode: str = 'monochrome'
