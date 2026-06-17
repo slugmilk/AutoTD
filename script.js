@@ -104,7 +104,7 @@ function handleWsMessage(data) {
     const thoughtContent = document.getElementById('thought-content');
     if (thoughtBox) thoughtBox.style.display = 'block';
     if (thoughtContent) {
-      thoughtContent.textContent = 'Ollama is translating the prompt into a TouchDesigner node plan...\n';
+      thoughtContent.textContent = 'Ollama is planning a procedural TouchDesigner network...\n';
     }
     resetRuntimeInspector();
   }
@@ -148,6 +148,14 @@ const tdPlanStatus = document.getElementById('td-plan-status');
 const tdPlanText = document.getElementById('td-plan-text');
 const sourceGenerateImage = document.getElementById('source-generate-image');
 const sourceGenerate3d = document.getElementById('source-generate-3d');
+if (sourceGenerateImage) {
+  sourceGenerateImage.checked = false;
+  sourceGenerateImage.disabled = true;
+}
+if (sourceGenerate3d) {
+  sourceGenerate3d.checked = false;
+  sourceGenerate3d.disabled = true;
+}
 generateBtn.addEventListener('click', handleGenerate);
 
 async function handleGenerate() {
@@ -166,8 +174,8 @@ async function handleGenerate() {
     prompt: promptVal,
     recipe_id: recipeId,
     source_options: {
-      generate_image: Boolean(sourceGenerateImage?.checked),
-      generate_3d: Boolean(sourceGenerate3d?.checked),
+      generate_image: false,
+      generate_3d: false,
     },
   };
   state.lastPayload = payload;
@@ -462,7 +470,7 @@ function renderSourceStatusCard(kind, entry) {
   const meta = document.createElement('div');
   meta.className = 'source-meta';
   const title = document.createElement('strong');
-  title.textContent = kind === 'image' ? 'Image Source · OpenAI' : '3D Source · Trellis';
+  title.textContent = kind === 'image' ? 'External Image Source' : 'External 3D Source';
   const path = document.createElement('span');
   path.textContent = entry?.path || entry?.obj_path || entry?.glb_path || entry?.error || 'No path returned';
 
@@ -500,10 +508,10 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
     recipe.innerHTML = `
       <div class="source-meta">
         <strong>Procedural TouchDesigner Recipe</strong>
-        <span>active · Ollama selects recipe_id and parameters only</span>
+        <span>active · Ollama plans layered procedural TD parameters</span>
         <div class="source-facts">
-          <span>external image: experimental</span>
-          <span>external 3D: experimental</span>
+          <span>external image: disabled</span>
+          <span>external 3D: disabled</span>
         </div>
       </div>
     `;
@@ -513,8 +521,8 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
     image.className = 'source-item';
     image.innerHTML = `
       <div class="source-meta">
-        <strong>External Image Source · OpenAI</strong>
-        <span>experimental · disabled for this MVP demo</span>
+        <strong>External Image Source</strong>
+        <span>disabled · procedural-only build</span>
       </div>
     `;
     sourceList.appendChild(image);
@@ -523,8 +531,8 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
     mesh.className = 'source-item';
     mesh.innerHTML = `
       <div class="source-meta">
-        <strong>External 3D Source · Trellis</strong>
-        <span>experimental · disabled for this MVP demo</span>
+        <strong>External 3D Source</strong>
+        <span>disabled · procedural-only build</span>
       </div>
     `;
     sourceList.appendChild(mesh);
@@ -640,12 +648,12 @@ window.AutoTDDebug = {
 };
 
 async function generateViaHttp(payload) {
-  updateGenStep(1, 'Analyzing prompt...');
+  updateGenStep(1, 'Planning procedural TD network...');
 
   const thoughtBox = document.getElementById('ai-thought-box');
   const thoughtContent = document.getElementById('thought-content');
   if (thoughtBox) thoughtBox.style.display = 'block';
-  if (thoughtContent) thoughtContent.textContent = 'Ollama is selecting a procedural TouchDesigner recipe...';
+  if (thoughtContent) thoughtContent.textContent = 'Ollama is designing feedback, particle, color, and post-process layers...';
 
   let result = null;
   try {
@@ -653,7 +661,7 @@ async function generateViaHttp(payload) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(360000),
+      signal: AbortSignal.timeout(420000),
     });
 
     if (!res.ok) {
@@ -670,7 +678,7 @@ async function generateViaHttp(payload) {
   }
 
   if (result.reasoning) {
-    if (thoughtContent) thoughtContent.textContent = 'Ollama selected a procedural recipe:';
+    if (thoughtContent) thoughtContent.textContent = 'Ollama procedural plan:';
     await typeThought(result.reasoning, 18);
   } else {
     if (thoughtContent) thoughtContent.textContent = 'Fallback recipe mode used local prompt heuristics.';
@@ -679,9 +687,9 @@ async function generateViaHttp(payload) {
 
   updateGenStep(2, 'Selecting procedural recipe...');
   await sleep(350);
-  updateGenStep(3, 'Tuning recipe parameters...');
+  updateGenStep(3, 'Validating layered operator structure...');
   await sleep(350);
-  updateGenStep(4, 'Running verified TouchDesigner chain...');
+  updateGenStep(4, 'Building TouchDesigner feedback/particle network...');
   await sleep(350);
   updateGenStep(5, 'Preparing preview...');
   await sleep(250);
@@ -689,7 +697,7 @@ async function generateViaHttp(payload) {
 }
 
 async function generateSourcePreview(payload) {
-  showToast('External source generation is experimental in this MVP.', 'warn');
+  showToast('External source generation is disabled in procedural-only mode.', 'warn');
   return null;
 }
 
@@ -831,6 +839,42 @@ function updateParamsDisplay(params) {
 });
 
 async function exportFile(format) {
+  if (format === 'TOX') {
+    try {
+      showToast('Exporting TOX from TouchDesigner...', 'info');
+      const res = await fetch(`${API_BASE}/api/export/tox`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: `autotd_${Date.now()}` }),
+        signal: AbortSignal.timeout(60000),
+      });
+      if (!res.ok) {
+        let detail = 'TOX export failed';
+        try {
+          const err = await res.json();
+          detail = err.detail || detail;
+        } catch {}
+        throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `autotd_export_${Date.now()}.tox`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast(`TOX exported: ${filename}`, 'success');
+      return;
+    } catch (err) {
+      showToast(`TOX export error: ${err.message}`, 'error');
+      return;
+    }
+  }
   if (state.tdConnected) {
     try {
       const res = await fetch(`${API_BASE}/api/td/preview`);
@@ -1116,7 +1160,7 @@ function shakeElement(el) {
 console.log('AutoTD Web v2.1 initialized. API:', API_BASE, '| Operator family auto-detect active');
 
 
-// 2D MVP UI overrides: Ollama + optional OpenAI image source + TouchDesigner recipes.
+// Procedural MVP UI overrides: Ollama + TouchDesigner recipes, no external assets.
 function renderAgentPlan(data) {
   const plan = data.td_plan || data.asset_plan?.td_mcp_plan || {};
   const params = data.parameters || data.params || {};
@@ -1130,7 +1174,7 @@ function renderAgentPlan(data) {
       selected_recipe: recipeId,
       concept_summary: params.concept_summary || plan.intent || '',
       visual_mood: params.visual_mood || '',
-      openai_image: params.use_comfyui_image ? 'requested' : 'skipped',
+      external_image: 'disabled',
       image_usage: params.image_usage || '',
       generated_parameters: {
         speed: params.speed,
@@ -1159,7 +1203,7 @@ function renderSourceStatusCard(kind, entry) {
   const meta = document.createElement('div');
   meta.className = 'source-meta';
   const title = document.createElement('strong');
-  title.textContent = kind === 'image' ? 'OpenAI 2D Source' : 'External 3D Source';
+  title.textContent = kind === 'image' ? 'External Image Source' : 'External 3D Source';
   const path = document.createElement('span');
   path.textContent = entry?.path || entry?.obj_path || entry?.glb_path || entry?.error || (kind === 'image' ? 'skipped' : 'disabled for this MVP');
 
@@ -1186,7 +1230,7 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
   const mesh = sourceStatusData?.object_3d || { requested: false, status: 'disabled', loaded: false };
   const imageRequested = Boolean(image.requested);
   const failureMessage = sourceFailureMessage(sourceStatusData);
-  const imageState = imageRequested ? sourceStatusLabel(image, 'OpenAI Image Generation') : 'OpenAI Image Generation: skipped';
+  const imageState = imageRequested ? sourceStatusLabel(image, 'External Image Source') : 'External Image Source: disabled';
 
   if (sourceStatus) {
     sourceStatus.textContent = failureMessage
@@ -1203,8 +1247,8 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
       <strong>Ollama Orchestration</strong>
       <span>active - recipe_id and parameters only</span>
       <div class="source-facts">
-        <span>recipes: dreamy_particle_field / glitch_feedback_field / soft_3d_orb</span>
-        <span>3D/Trellis: experimental</span>
+        <span>recipes: feedback_2d / particle_field</span>
+        <span>external assets: disabled</span>
       </div>
     </div>
   `;
@@ -1217,12 +1261,16 @@ function renderSourceAssets(assets, tdApplied = {}, sourceStatusData = null) {
   const particleEngine = tdApplied.particle_engine ? `particle engine: ${tdApplied.particle_engine}` : 'recipe engine: feedback/POP particle';
   const particleTrail = tdApplied.trail_enabled ? 'POP trails: enabled' : 'POP trails: recipe-dependent';
   const fallbackText = tdApplied.fallback_used ? `fallback: ${tdApplied.fallback_reason || 'used'}` : 'fallback: off';
+  const imagePipeline = tdApplied.image_first_pipeline
+    ? `image pipeline: ${tdApplied.image_pipeline || 'image-first active'}`
+    : `image loaded: ${Boolean(tdApplied.image_loaded_in_td || tdApplied.td_image_loaded)}`;
   td.innerHTML = `
     <div class="source-meta">
       <strong>TouchDesigner MCP Control</strong>
       <span>active - verified recipe / TouchDesigner MCP control</span>
       <div class="source-facts">
         <span>preview: ${tdApplied.final_output_top || tdApplied.out1 || 'out1'}</span>
+        <span>${imagePipeline}</span>
         <span>${particleEngine}</span>
         <span>${particleTrail}</span>
         <span>${fallbackText}</span>

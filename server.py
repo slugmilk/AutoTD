@@ -38,6 +38,7 @@ llm_router = LLMRouter()
 image_tool = LocalImageTool()
 trellis_tool = TrellisTool()
 source_generation_lock = asyncio.Lock()
+EXPORT_DIR = Path(tempfile.gettempdir()) / 'autotd_exports'
 
 
 class TrellisGenerateRequest(BaseModel):
@@ -46,6 +47,10 @@ class TrellisGenerateRequest(BaseModel):
     seed: int = Field(default=0, ge=0)
     simplify: float = Field(default=0.95, ge=0.0, le=1.0)
     texture_size: int = Field(default=1024, ge=256, le=4096)
+
+
+class ToxExportRequest(BaseModel):
+    name: str = 'autotd_export'
 
 
 def _inspect_obj_sidecars(obj_path: str) -> dict:
@@ -255,7 +260,7 @@ def _collect_source_assets(params: TDParameters, asset_plan: AssetPlan) -> list[
 async def send_to_touchdesigner(params: dict) -> tuple[str, str]:
     payload = dict(params)
     payload['action'] = 'generate'
-    td_timeout = float(os.getenv('AUTOTD_TD_SEND_TIMEOUT', '20'))
+    td_timeout = float(os.getenv('AUTOTD_TD_SEND_TIMEOUT', '45'))
     body = json.dumps(payload).encode('utf-8')
 
     try:
@@ -347,21 +352,22 @@ def _mvp_source_status() -> dict:
             'requested': True,
             'status': 'active',
             'label': 'Procedural TouchDesigner Recipe',
+            'tool': 'Ollama + TouchDesigner MCP/WebServer',
         },
         'image': {
             'requested': False,
-            'status': 'experimental',
+            'status': 'disabled',
             'label': 'External Image Source',
-            'tool': 'OpenAI Images API',
+            'tool': 'disabled for procedural-only build',
             'loaded': False,
             'path': '',
             'error': '',
         },
         'object_3d': {
             'requested': False,
-            'status': 'experimental',
+            'status': 'disabled',
             'label': 'External 3D Source',
-            'tool': 'Trellis',
+            'tool': 'disabled for procedural-only build',
             'loaded': False,
             'path': '',
             'obj_path': '',
@@ -372,7 +378,7 @@ def _mvp_source_status() -> dict:
         },
         'source_options': {'generate_image': False, 'generate_3d': False},
         'source_generation_errors': [],
-        'note': 'External OpenAI image/Trellis generation is disabled for the presentation MVP.',
+        'note': 'External image and 3D generation are disabled; AutoTD is using procedural TouchDesigner recipes only.',
     }
 
 
@@ -559,11 +565,21 @@ def _augment_td_plan_with_assets(asset_plan: AssetPlan, td_payload: dict) -> dic
 
 
 async def process_assets_and_send(params: TDParameters, asset_plan: AssetPlan) -> tuple[str, str, list[dict], dict, dict]:
-    # Current MVP scope: Ollama + optional OpenAI 2D source + TouchDesigner recipes only.
+    # Current scope: procedural-only TouchDesigner. External image/3D generation is disabled
+    # so the LLM can spend its budget on richer network structure instead of asset prompts.
+    asset_plan.needs_image_asset = False
     asset_plan.needs_3d_asset = False
+    asset_plan.image_prompt = ''
+    asset_plan.image_negative_prompt = ''
+    asset_plan.image_usage = 'none'
     asset_plan.trellis_prompt = ''
     asset_plan.object_description = ''
-    asset_plan.asset_usage = ''
+    asset_plan.asset_usage = 'none'
+    params.use_comfyui_image = False
+    params.image_usage = 'none'
+    params.asset_image_path = ''
+    params.asset_3d_path = ''
+    params.asset_3d_glb_path = ''
 
     if not EXTERNAL_SOURCE_GENERATION_ENABLED:
         asset_plan.needs_image_asset = False
@@ -581,9 +597,7 @@ async def process_assets_and_send(params: TDParameters, asset_plan: AssetPlan) -
         asset_plan.image_prompt = params.description or params.mood or 'abstract black and white media art source image'
     if asset_plan.needs_3d_asset and not asset_plan.trellis_prompt:
         asset_plan.trellis_prompt = asset_plan.object_description or params.description or 'abstract 3D media art object'
-    source_status = _initial_source_status(asset_plan)
-    if not EXTERNAL_SOURCE_GENERATION_ENABLED:
-        source_status = _mvp_source_status()
+    source_status = _mvp_source_status()
 
     async with source_generation_lock:
         if asset_plan.needs_image_asset:
@@ -699,7 +713,7 @@ async def process_assets_and_send(params: TDParameters, asset_plan: AssetPlan) -
 
     td_payload = params.model_dump()
     td_payload['asset_base_dir'] = TD_ASSET_DIR.as_posix()
-    td_payload['recipe_id'] = getattr(params, 'recipe_id', 'dreamy_particle_field')
+    td_payload['recipe_id'] = getattr(params, 'recipe_id', 'feedback_2d')
 
     if td_payload.get('asset_image_path'):
         try:
@@ -827,20 +841,20 @@ async def api_status():
         llm_stack={
             **llm_router.status(),
             'ollama': await llm_router.ollama_status(),
-            'image_tool': await image_tool.status(),
-            'trellis_tool': {'enabled': False, 'ok': False, 'scope': 'disabled for current 2D MVP'},
+            'image_tool': {'enabled': False, 'ok': False, 'scope': 'disabled for procedural-only TouchDesigner build'},
+            'trellis_tool': {'enabled': False, 'ok': False, 'scope': 'disabled for procedural-only TouchDesigner build'},
         },
     )
 
 
 @app.get('/api/tools/trellis/status')
 async def trellis_status():
-    return {'enabled': False, 'ok': False, 'scope': 'disabled for current 2D MVP'}
+    return {'enabled': False, 'ok': False, 'scope': 'disabled for procedural-only TouchDesigner build'}
 
 
 @app.post('/api/tools/trellis/generate')
 async def trellis_generate(req: TrellisGenerateRequest):
-    raise HTTPException(status_code=400, detail='Trellis is disabled for the current Ollama + OpenAI Images + TouchDesigner 2D MVP.')
+    raise HTTPException(status_code=400, detail='Trellis is disabled for the procedural-only TouchDesigner build.')
     result = await trellis_tool.generate_mesh(
         prompt=req.prompt,
         image_path=req.image_path,
@@ -855,19 +869,50 @@ async def trellis_generate(req: TrellisGenerateRequest):
 
 @app.get('/api/tools/image/status')
 async def image_status():
-    return await image_tool.status()
+    return {'enabled': False, 'ok': False, 'scope': 'disabled for procedural-only TouchDesigner build'}
 
 
 @app.post('/api/tools/image/generate')
 async def image_generate(req: ImageGenerateRequest):
-    result = await image_tool.generate_image(
-        prompt=req.prompt,
-        negative_prompt=req.negative_prompt,
-        workflow=req.workflow,
+    raise HTTPException(status_code=400, detail='External image generation is disabled for the procedural-only TouchDesigner build.')
+
+
+@app.post('/api/export/tox')
+async def export_tox(req: ToxExportRequest):
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    safe_name = ''.join(ch if ch.isalnum() or ch in ('-', '_') else '_' for ch in req.name or 'autotd_export').strip('_')
+    safe_name = (safe_name or 'autotd_export')[:80]
+    body = json.dumps({
+        'name': safe_name,
+        'export_dir': EXPORT_DIR.as_posix(),
+    }).encode('utf-8')
+    try:
+        _headers, response_body = await asyncio.to_thread(
+            _raw_http_request,
+            'POST',
+            '/export/tox',
+            body,
+            'application/json',
+            float(os.getenv('AUTOTD_TD_EXPORT_TIMEOUT', '30')),
+        )
+        message = response_body.decode('utf-8', errors='replace').strip()
+        result = json.loads(message) if message else {}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f'TouchDesigner TOX export failed: {exc}')
+
+    if result.get('status') != 'ok':
+        raise HTTPException(status_code=500, detail=result.get('error') or result or 'TOX export failed')
+
+    tox_path = Path(result.get('path', ''))
+    if not tox_path.exists() or tox_path.stat().st_size <= 0:
+        raise HTTPException(status_code=500, detail=f'Exported TOX file was not found: {tox_path}')
+
+    return FileResponse(
+        tox_path,
+        media_type='application/octet-stream',
+        filename=tox_path.name,
+        headers={'Cache-Control': 'no-store'},
     )
-    if not result.get('success'):
-        raise HTTPException(status_code=400, detail=result)
-    return result
 
 @app.post('/api/generate', response_model=GenerateResponse)
 async def api_generate(req: GenerateRequest):
@@ -885,7 +930,7 @@ async def api_generate(req: GenerateRequest):
         try:
             reasoning, orchestrator = await asyncio.wait_for(
                 llm_router.orchestrate(req),
-                timeout=float(os.getenv('AUTOTD_HTTP_ORCHESTRATE_TIMEOUT', '180')),
+                timeout=float(os.getenv('AUTOTD_HTTP_ORCHESTRATE_TIMEOUT', '360')),
             )
         except Exception as exc:
             reasoning, orchestrator = llm_router._fallback_output(req, f'HTTP orchestration fallback: {exc}')
@@ -902,7 +947,7 @@ async def api_generate(req: GenerateRequest):
     try:
         td_status, td_message, source_assets, td_applied, source_status = await asyncio.wait_for(
             process_assets_and_send(params, orchestrator.asset_plan),
-            timeout=float(os.getenv('AUTOTD_HTTP_ASSET_TIMEOUT', '180')),
+            timeout=float(os.getenv('AUTOTD_HTTP_ASSET_TIMEOUT', '360')),
         )
         if td_status == 'sent':
             preview_url = f'{TD_BASE_URL}/preview'
@@ -1026,7 +1071,7 @@ async def websocket_endpoint(ws: WebSocket):
                 EXTERNAL_SOURCE_GENERATION_ENABLED,
             )
             await ws.send_json({'type': 'thinking_start'})
-            await ws.send_json({'type': 'step', 'step': 1, 'message': 'Analyzing prompt with Ollama...'})
+            await ws.send_json({'type': 'step', 'step': 1, 'message': 'Planning a procedural TouchDesigner network with Ollama...'})
 
             streamed = False
             async def on_chunk(chunk: str):
@@ -1050,11 +1095,11 @@ async def websocket_endpoint(ws: WebSocket):
                         ws,
                         llm_router.orchestrate(req, on_chunk=on_chunk),
                         [
-                            'Ollama is loading qwen3:30b and preparing the media-art recipe...',
-                            'Waiting for the first reasoning tokens from Ollama...',
-                            'Still thinking - large local models can take a while on first run...',
+                            'Ollama is reasoning about recipe, visual layers, and operator families...',
+                            'Designing feedback, particle, color, motion, and post-process layers...',
+                            'Still thinking - large local models can take a while while building a richer plan...',
                         ],
-                        timeout=float(os.getenv('AUTOTD_WS_ORCHESTRATE_TIMEOUT', '180')),
+                        timeout=float(os.getenv('AUTOTD_WS_ORCHESTRATE_TIMEOUT', '360')),
                     )
                 except Exception as exc:
                     reasoning, orchestrator = llm_router._fallback_output(req, f'WebSocket orchestration fallback: {exc}')
@@ -1076,19 +1121,19 @@ async def websocket_endpoint(ws: WebSocket):
                 'asset_plan': orchestrator.asset_plan.model_dump(),
                 'parameters': params.model_dump(),
             })
-            await ws.send_json({'type': 'step', 'step': 2, 'message': 'Recipe selected. Preparing verified TD chain...'})
-            await ws.send_json({'type': 'step', 'step': 3, 'message': 'Generating optional OpenAI 2D source if the recipe requested it...'})
+            await ws.send_json({'type': 'step', 'step': 2, 'message': 'Recipe selected. Validating planned TD operators and parameters...'})
+            await ws.send_json({'type': 'step', 'step': 3, 'message': 'Building procedural-only feedback/particle network in TouchDesigner...'})
             
             try:
                 td_status, td_message, source_assets, td_applied, source_status = await _await_with_progress(
                     ws,
                     process_assets_and_send(params, orchestrator.asset_plan),
                     [
-                        'Generating or collecting source assets...',
-                        'Sending the node plan and source paths to TouchDesigner...',
+                        'External source generation is disabled; sending procedural recipe payload...',
+                        'TouchDesigner is creating layered feedback, color, and particle-style nodes...',
                         'Waiting for TouchDesigner to cook the output TOP...',
                     ],
-                    timeout=float(os.getenv('AUTOTD_WS_ASSET_TIMEOUT', '220')),
+                    timeout=float(os.getenv('AUTOTD_WS_ASSET_TIMEOUT', '360')),
                 )
             except Exception as exc:
                 td_status, td_message = 'error', str(exc)
@@ -1129,7 +1174,7 @@ async def websocket_endpoint(ws: WebSocket):
                 'source_status': source_status,
                 **flat_source,
             })
-            await ws.send_json({'type': 'step', 'step': 4, 'message': 'Sending recipe parameters to TouchDesigner...'})
+            await ws.send_json({'type': 'step', 'step': 4, 'message': 'Cooking output TOP and collecting telemetry...'})
 
             preview_url = f'{TD_BASE_URL}/preview' if td_status == 'sent' else None
             await ws.send_json({'type': 'step', 'step': 5, 'message': 'Finalizing preview...'})

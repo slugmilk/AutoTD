@@ -127,33 +127,39 @@ class LLMRouter:
 
     def _orchestrator_system_prompt(self, operator_family: str = 'top') -> str:
         return (
-            'You are an AutoTD media-art planner. '
-            'Given a user prompt, choose ONE stable TouchDesigner recipe and tune its parameters.\n'
-            'Do not generate TouchDesigner node names, code, or arbitrary graph structures.\n\n'
+            'You are an AutoTD procedural TouchDesigner media-art director. '
+            'External image generation, 3D generation, ComfyUI, OpenAI Images, and Trellis are disabled. '
+            'Your job is to design a rich procedural TouchDesigner network plan using internal operators only.\n\n'
             'AVAILABLE RECIPES:\n'
-            '- feedback_2d: underwater, fog, dream, flow, soft distortion, liquid atmosphere.\n'
-            '- particle_field: POP-based small light particles on a black background, dust, stardust, floating sparkles, glowing points.\n\n'
+            '- feedback_2d: layered 2D feedback, liquid flow, dream haze, soft displacement, color filtering.\n'
+            '- particle_field: black-background particle art, stardust, floating sparkles, glowing trails.\n\n'
             'Recipe selection rules:\n'
             '- water, sea, fog, dream, flow, soft, underwater -> feedback_2d\n'
             '- particle, starlight, dust, light, floating, sparkles -> particle_field\n\n'
-            'Return 1-2 short Korean reasoning sentences, then a single JSON block in ```json fences.\n'
+            'Planning rules:\n'
+            '- Reusing the same role is allowed and encouraged when it improves the image. Multiple feedback, blur, noise, transform, composite, level, and displace nodes are valid.\n'
+            '- Think in layers: seed layer, motion/control layer, feedback loop, color grade, glow/trail post-process, final output.\n'
+            '- TouchDesigner can use TOP, SOP, POP, CHOP, COMP, DAT, MAT, and helper Python DAT scripts when structurally useful.\n'
+            '- The final result must be procedural-only and should look like media art, not a single default operator.\n'
+            '- Include concise visible planning text before JSON using labels: planning, node design, connection proposal, repair/safety.\n\n'
+            'Return short Korean planning notes, then a single JSON block in ```json fences.\n'
             'The JSON must match this shape exactly:\n'
             '{"recipe_id":"feedback_2d","concept_summary":"...","visual_mood":"...",'
-            '"use_comfyui_image":true,"comfyui_prompt":"...","comfyui_negative_prompt":"...",'
-            '"image_usage":"fog_overlay","parameters":{'
+            '"use_comfyui_image":false,"comfyui_prompt":"","comfyui_negative_prompt":"",'
+            '"image_usage":"none","parameters":{'
             '"speed":0.45,"noise_strength":0.6,"feedback_opacity":0.86,"blur_amount":0.45,'
             '"displace_weight":0.35,"glow_intensity":0.7,"particle_count":600,"spread":0.7,'
             '"color_1":"#dfefff","color_2":"#6a8fbf","color_3":"#05070a"}}\n\n'
-            'image_usage must be one of: background_composite, fog_overlay, particle_sprite.\n'
-            'use_comfyui_image should be true only when an OpenAI-generated 2D image source would improve the recipe.\n'
+            'image_usage must be "none" and use_comfyui_image must be false.\n'
             'All numeric values except particle_count must be between 0.0 and 1.0. particle_count must be 50-3000.'
         )
 
     def _orchestrator_user_message(self, req: GenerateRequest) -> str:
         return (
             f'Prompt: {req.prompt}\n'
-            'Pick feedback_2d or particle_field and tune only the allowed JSON fields.\n'
-            'OpenAI Images may create a 2D texture source when useful; never request Trellis or 3D objects.'
+            'Pick feedback_2d or particle_field. Build a rich procedural TouchDesigner direction without external image or 3D assets.\n'
+            'Tune parameters for color, feedback depth, motion, displacement, glow, density, and spread. '
+            'Never request ComfyUI, OpenAI Images, Trellis, or imported files.'
         )
 
     async def _gemini_orchestrate(self, req: GenerateRequest) -> str:
@@ -183,8 +189,8 @@ class LLMRouter:
             ],
             'options': {
                 'temperature': 0.35,
-                'num_predict': int(os.getenv('OLLAMA_NUM_PREDICT', '220')),
-                'num_ctx': int(os.getenv('OLLAMA_NUM_CTX', '8192')),
+                'num_predict': int(os.getenv('OLLAMA_NUM_PREDICT', '900')),
+                'num_ctx': int(os.getenv('OLLAMA_NUM_CTX', '16384')),
             },
         }
         timeout = httpx.Timeout(self.ollama_timeout, connect=10.0, read=self.ollama_timeout, write=10.0, pool=10.0)
@@ -323,11 +329,11 @@ class LLMRouter:
         if not isinstance(payload, dict):
             payload = {}
 
-        if req.recipe_id in ('dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'):
+        if req.recipe_id in ('feedback_2d', 'particle_field'):
             recipe_id = req.recipe_id
         else:
             recipe_id = str(payload.get('recipe_id') or self._select_recipe_from_prompt(req.prompt))
-            if recipe_id not in ('dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'):
+            if recipe_id not in ('feedback_2d', 'particle_field'):
                 recipe_id = self._select_recipe_from_prompt(req.prompt)
 
         rp = payload.get('parameters') or payload.get('recipe_params') or payload.get('td_params') or {}
@@ -335,9 +341,6 @@ class LLMRouter:
             rp = {}
 
         template_map = {
-            'dreamy_particle_field': 'particle',
-            'glitch_feedback_field': 'feedback',
-            'soft_3d_orb': '3d',
             'feedback_2d': 'feedback',
             'particle_field': 'particle',
         }
@@ -353,14 +356,12 @@ class LLMRouter:
         color_2 = str(rp.get('color_2') or '#9fb7ff')
         color_3 = str(rp.get('color_3') or '#05070a')
         cr, cg, cb = self._hex_to_rgb01(color_1)
-        image_usage = str(payload.get('image_usage') or rp.get('image_usage') or ('particle_sprite' if recipe_id == 'particle_field' else 'fog_overlay'))
-        if image_usage not in {'background_composite', 'fog_overlay', 'particle_sprite'}:
-            image_usage = 'background_composite'
-        use_image = bool(req.source_options.generate_image)
+        image_usage = 'none'
+        use_image = False
         concept_summary = str(payload.get('concept_summary') or heuristic.get('concept_summary') or req.prompt)
         visual_mood = str(payload.get('visual_mood') or heuristic.get('visual_mood') or 'atmospheric')
-        comfy_prompt = str(payload.get('comfyui_prompt') or heuristic.get('comfyui_prompt') or req.prompt)
-        comfy_negative = str(payload.get('comfyui_negative_prompt') or 'text, watermark, logo, low quality, harsh artifacts')
+        comfy_prompt = ''
+        comfy_negative = ''
 
         td_params = TDParameters(
             recipe_id=recipe_id,
@@ -402,10 +403,10 @@ class LLMRouter:
         asset_plan = AssetPlan(
             needs_image_asset=use_image,
             needs_3d_asset=False,
-            image_prompt=comfy_prompt if use_image else '',
+            image_prompt='',
             image_negative_prompt=comfy_negative,
             image_usage=image_usage,
-            operator_brief=f'Recipe: {recipe_id}. {concept_summary}',
+            operator_brief=f'Procedural-only recipe: {recipe_id}. {concept_summary}',
             td_mcp_plan=self._recipe_mcp_plan(recipe_id, req, td_params.model_dump()),
         )
 
@@ -755,6 +756,149 @@ class LLMRouter:
             'color_3': '#05070a',
         }
 
+    def _heuristic_recipe_params(self, prompt: str, recipe_id: str) -> dict[str, Any]:
+        """Procedural-only fallback parameters used when the LLM is slow or malformed."""
+        text = (prompt or '').lower()
+
+        def has(*tokens: str) -> bool:
+            return any(token in text for token in tokens)
+
+        energetic = has('fast', 'storm', 'chaos', 'explosion', 'aggressive', 'rapid', 'intense', '빠른', '폭발', '격렬')
+        calm = has('slow', 'calm', 'quiet', 'gentle', 'soft', 'dream', '느린', '고요', '명상', '부드러운')
+        dense = has('dense', 'many', 'swarm', 'particles', 'dust', 'stars', 'sparkles', '많은', '입자', '별가루', '먼지')
+        turbulent = has('turbulent', 'rough', 'distort', 'wave', 'glitch', '거친', '왜곡', '파동')
+        bright = has('glow', 'light', 'bright', 'shine', 'neon', '빛', '발광', '반짝')
+        water = has('ocean', 'water', 'sea', 'underwater', 'fog', 'mist', 'liquid', '바다', '물', '수중', '안개')
+
+        if recipe_id == 'particle_field':
+            return {
+                'concept_summary': 'Black-space particle field with layered glow trails and slow procedural drift.',
+                'visual_mood': 'floating luminous stardust',
+                'use_comfyui_image': False,
+                'image_usage': 'none',
+                'comfyui_prompt': '',
+                'comfyui_negative_prompt': '',
+                'speed': 0.72 if energetic else 0.28 if calm else 0.48,
+                'noise_strength': 0.46 if turbulent else 0.26,
+                'feedback_opacity': 0.86,
+                'blur_amount': 0.48 if bright else 0.34,
+                'displace_weight': 0.14,
+                'glow_intensity': 0.94 if bright else 0.78,
+                'particle_count': 1800 if dense else 950,
+                'spread': 0.88,
+                'color_1': '#fff7d6',
+                'color_2': '#48e5ff',
+                'color_3': '#020207',
+            }
+
+        return {
+            'concept_summary': 'Layered 2D feedback field built from internal noise, ramps, displacement, echo loops, and color grading.',
+            'visual_mood': 'liquid dream feedback' if water else 'procedural feedback haze',
+            'use_comfyui_image': False,
+            'image_usage': 'none',
+            'comfyui_prompt': '',
+            'comfyui_negative_prompt': '',
+            'speed': 0.68 if energetic else 0.22 if calm else 0.44,
+            'noise_strength': 0.58 if turbulent else 0.34 if water else 0.42,
+            'feedback_opacity': 0.93,
+            'blur_amount': 0.66 if calm or water else 0.52,
+            'displace_weight': 0.42 if turbulent or water else 0.26,
+            'glow_intensity': 0.82 if bright else 0.68,
+            'particle_count': 420,
+            'spread': 0.58,
+            'color_1': '#58e6ff' if water else '#ff7adf',
+            'color_2': '#6f7dff' if water else '#6ee7ff',
+            'color_3': '#031018' if water else '#090416',
+        }
+
+    def _recipe_mcp_plan(self, recipe_id: str, req: GenerateRequest, td_params: dict[str, Any]) -> dict[str, Any]:
+        recipes = {
+            'feedback_2d': [
+                ('base_noise_a', 'noiseTOP'),
+                ('base_noise_b', 'noiseTOP'),
+                ('control_lfo', 'lfoCHOP'),
+                ('color_ramp_primary', 'rampTOP'),
+                ('color_ramp_secondary', 'rampTOP'),
+                ('seed_composite', 'compositeTOP'),
+                ('feedback_loop_a', 'feedbackTOP'),
+                ('feedback_transform_a', 'transformTOP'),
+                ('flow_displace_a', 'displaceTOP'),
+                ('feedback_loop_b', 'feedbackTOP'),
+                ('feedback_transform_b', 'transformTOP'),
+                ('echo_composite', 'compositeTOP'),
+                ('mist_blur', 'blurTOP'),
+                ('glow_blur', 'blurTOP'),
+                ('color_filter_level', 'levelTOP'),
+                ('final_composite', 'compositeTOP'),
+                ('generated_out', 'nullTOP'),
+                ('recipe_out', 'outTOP'),
+            ],
+            'particle_field': [
+                ('black_background', 'constantTOP'),
+                ('particle_seed_noise', 'noiseTOP'),
+                ('particle_mask_threshold', 'thresholdTOP'),
+                ('particle_sharpen_level', 'levelTOP'),
+                ('particle_feedback_a', 'feedbackTOP'),
+                ('particle_drift_transform', 'transformTOP'),
+                ('particle_feedback_b', 'feedbackTOP'),
+                ('trail_blur_small', 'blurTOP'),
+                ('trail_blur_wide', 'blurTOP'),
+                ('particle_color_level', 'levelTOP'),
+                ('sparkle_composite', 'compositeTOP'),
+                ('black_screen_composite', 'compositeTOP'),
+                ('generated_out', 'nullTOP'),
+                ('recipe_out', 'outTOP'),
+            ],
+        }
+        node_pairs = recipes.get(recipe_id, recipes['feedback_2d'])
+        nodes = [{'id': name, 'type': op_type, 'name': name, 'params': {}} for name, op_type in node_pairs]
+        connections = []
+        for index in range(len(nodes) - 1):
+            connections.append({'from': nodes[index]['id'], 'to': nodes[index + 1]['id']})
+        if recipe_id == 'feedback_2d':
+            connections.extend([
+                {'from': 'base_noise_b', 'to': 'flow_displace_a', 'to_input': 1},
+                {'from': 'color_ramp_secondary', 'to': 'echo_composite', 'to_input': 1},
+                {'from': 'mist_blur', 'to': 'final_composite', 'to_input': 1},
+                {'from': 'glow_blur', 'to': 'final_composite', 'to_input': 2},
+            ])
+        else:
+            connections.extend([
+                {'from': 'black_background', 'to': 'black_screen_composite', 'to_input': 0},
+                {'from': 'trail_blur_small', 'to': 'sparkle_composite', 'to_input': 1},
+                {'from': 'trail_blur_wide', 'to': 'black_screen_composite', 'to_input': 1},
+            ])
+        return {
+            'version': 'autotd-procedural-rich-v2',
+            'recipe_id': recipe_id,
+            'intent': req.prompt,
+            'source_options': {'generate_image': False, 'generate_3d': False},
+            'reset_scope': '/project1/autotd_generated',
+            'output': 'generated_out',
+            'nodes': nodes,
+            'connections': connections,
+            'parameters': {
+                'speed': td_params.get('speed'),
+                'noise_strength': td_params.get('noise_strength'),
+                'feedback_opacity': td_params.get('feedback_opacity'),
+                'blur_amount': td_params.get('blur_amount'),
+                'displace_weight': td_params.get('displace_weight'),
+                'glow_intensity': td_params.get('glow_intensity'),
+                'particle_count': td_params.get('particle_count'),
+                'spread': td_params.get('spread'),
+                'color_1': td_params.get('color_1'),
+                'color_2': td_params.get('color_2'),
+                'color_3': td_params.get('color_3'),
+            },
+            'operator_policy': {
+                'same_role_nodes_allowed': True,
+                'families_allowed': ['TOP', 'SOP', 'POP', 'CHOP', 'COMP', 'DAT', 'MAT'],
+                'python_dat_helpers_allowed': True,
+                'external_assets_enabled': False,
+            },
+            'notes': 'Procedural-only rich TD plan: repeated feedback/blur/transform/composite nodes are intentional.',
+        }
+
     def _coerce_payload_shape(self, payload: Any, req: GenerateRequest) -> dict[str, Any]:
         if not isinstance(payload, dict):
             return self._upgrade_flat_payload({}, req)
@@ -815,15 +959,15 @@ class LLMRouter:
         clean['trellis_prompt'] = str(clean.get('trellis_prompt') or (req.prompt if clean['needs_3d_asset'] else ''))
         clean['operator_brief'] = str(clean.get('operator_brief') or td_params.get('description') or req.prompt)
         clean['model_hint'] = str(clean.get('model_hint') or '')
-        # The web UI is the source of truth for external asset generation.
-        clean['needs_image_asset'] = bool(req.source_options.generate_image)
-        clean['needs_3d_asset'] = bool(req.source_options.generate_3d)
-        clean['image_prompt'] = str(clean.get('image_prompt') or (req.prompt if clean['needs_image_asset'] else ''))
+        # Procedural-only mode: external image/3D assets are intentionally disabled.
+        clean['needs_image_asset'] = False
+        clean['needs_3d_asset'] = False
+        clean['image_prompt'] = ''
         clean['image_negative_prompt'] = str(clean.get('image_negative_prompt') or '')
-        clean['image_usage'] = str(clean.get('image_usage') or 'background_composite')
-        clean['trellis_prompt'] = str(clean.get('trellis_prompt') or (req.prompt if clean['needs_3d_asset'] else ''))
-        clean['object_description'] = str(clean.get('object_description') or (req.prompt if clean['needs_3d_asset'] else ''))
-        clean['asset_usage'] = str(clean.get('asset_usage') or 'geometry_source')
+        clean['image_usage'] = 'none'
+        clean['trellis_prompt'] = ''
+        clean['object_description'] = ''
+        clean['asset_usage'] = 'none'
         plan = self._sanitize_mcp_plan(clean.get('td_mcp_plan'), req, td_params)
         clean['td_mcp_plan'] = plan or self._default_mcp_plan(req, td_params)
         clean['td_mcp_plan']['operator_brief'] = clean['operator_brief'][:1800]
@@ -1542,7 +1686,7 @@ class LLMRouter:
         return data['choices'][0]['message']['content'].strip()
 
     def _fallback_output(self, req: GenerateRequest, reason: str) -> tuple[str, OrchestratorOutput]:
-        if req.recipe_id in ('dreamy_particle_field', 'glitch_feedback_field', 'soft_3d_orb', 'feedback_2d', 'particle_field'):
+        if req.recipe_id in ('feedback_2d', 'particle_field'):
             recipe_id = req.recipe_id
         else:
             recipe_id = self._select_recipe_from_prompt(req.prompt)
@@ -1551,9 +1695,6 @@ class LLMRouter:
         recipe_params.update(self._palette_from_prompt(req.prompt, recipe_id))
         
         template_map = {
-            'dreamy_particle_field': 'particle',
-            'glitch_feedback_field': 'feedback',
-            'soft_3d_orb': '3d',
             'feedback_2d': 'feedback',
             'particle_field': 'particle',
         }
@@ -1562,10 +1703,8 @@ class LLMRouter:
         color_2 = str(recipe_params.get('color_2') or '#9fb7ff')
         color_3 = str(recipe_params.get('color_3') or '#05070a')
         cr, cg, cb = self._hex_to_rgb01(color_1)
-        use_image = bool(req.source_options.generate_image)
-        image_usage = str(recipe_params.get('image_usage') or ('particle_sprite' if recipe_id == 'particle_field' else 'fog_overlay'))
-        if image_usage not in {'background_composite', 'fog_overlay', 'particle_sprite'}:
-            image_usage = 'background_composite'
+        use_image = False
+        image_usage = 'none'
 
         td_params = TDParameters(
             recipe_id=recipe_id,
@@ -1605,10 +1744,10 @@ class LLMRouter:
         asset_plan = AssetPlan(
             needs_image_asset=use_image,
             needs_3d_asset=False,
-            image_prompt=str(recipe_params.get('comfyui_prompt') or req.prompt) if use_image else '',
-            image_negative_prompt=str(recipe_params.get('comfyui_negative_prompt') or 'text, watermark, logo, low quality'),
+            image_prompt='',
+            image_negative_prompt='',
             image_usage=image_usage,
-            operator_brief=f'Recipe: {recipe_id} (fallback). {td_params.concept_summary}',
+            operator_brief=f'Procedural-only recipe: {recipe_id} (fallback). {td_params.concept_summary}',
             td_mcp_plan=self._recipe_mcp_plan(recipe_id, req, td_params.model_dump()),
         )
         output = OrchestratorOutput(
